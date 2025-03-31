@@ -101,38 +101,29 @@ with st.form("form_pago"):
 st.divider()
 st.subheader("Verificación de Pago")
 
-if st.button("Consultar Estado", key="verificar_pago"):
+if st.button("Consultar Estado"):
     if not st.session_state.preference_id:
         st.warning("Primero genera un pago")
     else:
-        with st.spinner("Verificando estado..."):
-            try:
-                # Primero intenta con preference_id (para obtener payment_id)
-                result = call_api("verificar_pago", {
-                    "preference_id": st.session_state.preference_id,
-                    "usuario_id": st.session_state.usuario_id
-                })
-                
-                if result.get("error"):
-                    # Si falla, muestra el error específico
-                    st.error(f"Error: {result.get('detail')}")
-                else:
-                    st.session_state.ultima_verificacion = datetime.now()
-                    
-                    if result.get("status") == "approved":
-                        st.session_state.payment_id = result.get("payment_id")
-                        st.success(f"""
-                        ✅ **Pago Aprobado**  
-                        - ID: {result.get("payment_id")}  
-                        - Monto: ${result.get("monto", 0):.2f} ARS  
-                        - Fecha: {result.get("fecha", "N/A")}  
-                        """)
-                    else:
-                        st.warning(f"""
-                        ⏳ Estado: {result.get("status", "pending").upper()}
-                        """)
-            except Exception as e:
-                st.error(f"Error al verificar: {str(e)}")
+        with st.spinner("Buscando información de pago..."):
+            result = call_api("verificar_pago", {
+                "preference_id": st.session_state.preference_id
+            })
+            
+            if result.get("status") == "approved":
+                st.success(f"""
+                ✅ **Pago Confirmado**  
+                - ID: {result["payment_id"]}  
+                - Monto: ${result["monto"]:.2f}  
+                - Fecha: {result["fecha"]}
+                """)
+            elif result.get("status") == "pending":
+                st.warning("""
+                ⏳ **Pago Pendiente**  
+                Si ya pagaste, espera 2 minutos y vuelve a verificar.
+                """)
+            else:
+                st.error(f"Estado desconocido: {result.get('detail')}")
 
 if st.session_state.ultima_verificacion:
     st.caption(f"Última verificación: {st.session_state.ultima_verificacion.strftime('%H:%M:%S')}")

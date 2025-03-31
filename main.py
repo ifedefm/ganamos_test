@@ -5,6 +5,7 @@ import re
 
 # Configuración
 API_URL = "https://render-notificacion.onrender.com"  # URL Mi Render
+st.set_page_config(
     page_title="Sistema de Pagos Reales",
     page_icon="💳",
     layout="wide"

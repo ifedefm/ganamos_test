@@ -4,8 +4,7 @@ from datetime import datetime
 import re
 
 # Configuración
-API_URL = "https://render-notify-mp.onrender.com"  # Cambiar por tu URL real
-st.set_page_config(
+API_URL = "https://render-notificacion.onrender.com"  # URL Mi Render
     page_title="Sistema de Pagos Reales",
     page_icon="💳",
     layout="wide"

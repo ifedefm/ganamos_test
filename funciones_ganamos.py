@@ -69,7 +69,7 @@ def login_ganamos():
     lista_usuarios = {x['username']:x['id'] for x in response_users.json()["result"]["users"]}
     return lista_usuarios, session_id
 
-def carga_ganamos(alias, monto, usuario, contrasenia):
+def carga_ganamos(alias, monto):
     usuarios, session_id= login_ganamos()
     
     id_usuario = usuarios[alias]
@@ -120,7 +120,7 @@ def carga_ganamos(alias, monto, usuario, contrasenia):
          return False , balance_ganamos
     
     
-def retirar_ganamos(alias, monto, usuario, contrasenia):
+def retirar_ganamos(alias, monto):
     lista_usuarios, session_id= login_ganamos()
     id_usuario = lista_usuarios[alias]
     url_carga_ganamos = f'https://agents.ganamos.bet/api/agent_admin/user/{id_usuario}/payment/'
@@ -169,7 +169,7 @@ def retirar_ganamos(alias, monto, usuario, contrasenia):
          return False, balance_ganamos
     
 
-def nuevo_jugador(nueva_contrasenia, nuevo_usuario, usuario, contrasenia ):
+def nuevo_jugador(nueva_contrasenia, nuevo_usuario):
     lista_usuarios, session_id= login_ganamos('adminflamingo','1111aaaa')
     print(session_id)
 

@@ -155,6 +155,6 @@ st.sidebar.markdown("""
 3. Verifica el estado cuando finalices
 
 ### 📞 Soporte
-soporte@twki.com  
+soporte@twky.com  
 Tel: +54 11 1234-5678
 """)

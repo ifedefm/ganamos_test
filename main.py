@@ -4,7 +4,7 @@ from datetime import datetime
 import re
 
 # Configuración
-API_URL = "https://streamlit-test-eiu8.onrender.com"  # URL Mi Render
+API_URL = "https://render-notify-mp.onrender.com"  # Cambia por tu URL real
 st.set_page_config(
     page_title="Sistema de Pagos Reales",
     page_icon="💳",
@@ -35,7 +35,13 @@ def call_api(endpoint, payload):
             headers={"Content-Type": "application/json"},
             timeout=15
         )
-        return response.json() if response.status_code == 200 else {"error": True, "detail": response.text}
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {
+                "error": True,
+                "detail": f"Error {response.status_code}: {response.text}"
+            }
     except Exception as e:
         return {"error": True, "detail": str(e)}
 
@@ -57,12 +63,11 @@ with st.form("form_pago"):
         elif not validar_email(email_comprador):
             st.error("Ingresa un email válido")
         else:
-            result = call_api("crear_pago/", {
+            result = call_api("crear_pago", {
                 "usuario_id": usuario_id,
                 "monto": float(monto),
                 "email": email_comprador
             })
-            st.write(result)
             
             if result.get("error"):
                 st.error(f"Error: {result.get('detail', 'Contacta al soporte')}")
@@ -97,33 +102,47 @@ with st.form("form_pago"):
                     unsafe_allow_html=True
                 )
 
-# Sección de verificación
+# Sección de verificación mejorada
 st.divider()
 st.subheader("Verificación de Pago")
 
-if st.button("Consultar Estado"):
+if st.button("Consultar Estado", key="verificar_pago"):
     if not st.session_state.preference_id:
         st.warning("Primero genera un pago")
     else:
-        with st.spinner("Buscando información de pago..."):
+        with st.spinner("Verificando estado real..."):
+            # 1. Verificar en la base de datos local primero
             result = call_api("verificar_pago", {
-                "preference_id": st.session_state.preference_id
+                "preference_id": st.session_state.preference_id,
+                "usuario_id": st.session_state.usuario_id
             })
             
-            if result.get("status") == "approved":
+            st.session_state.ultima_verificacion = datetime.now()
+            
+            if result.get("error"):
+                st.error(f"Error: {result.get('detail')}")
+            elif result.get("status") == "approved":
+                st.session_state.payment_id = result.get("payment_id")
+                st.balloons()
                 st.success(f"""
-                ✅ **Pago Confirmado**  
-                - ID: {result["payment_id"]}  
-                - Monto: ${result["monto"]:.2f}  
-                - Fecha: {result["fecha"]}
+                ✅ **Pago Aprobado**  
+                - **ID Transacción:** {result.get('payment_id')}  
+                - **Monto:** ${result.get('monto', 0):.2f} ARS  
+                - **Fecha:** {result.get('fecha', 'N/A')}  
                 """)
             elif result.get("status") == "pending":
                 st.warning("""
                 ⏳ **Pago Pendiente**  
-                Si ya pagaste, espera 2 minutos y vuelve a verificar.
+                Si ya realizaste el pago:
+                1. Espera 3 minutos
+                2. Vuelve a verificar
+                3. Si persiste, contacta soporte
                 """)
             else:
-                st.error(f"Estado desconocido: {result.get('detail')}")
+                st.error(f"""
+                ❌ **Estado Desconocido**  
+                Detalle: {result.get('detail', 'Contacta al soporte')}
+                """)
 
 if st.session_state.ultima_verificacion:
     st.caption(f"Última verificación: {st.session_state.ultima_verificacion.strftime('%H:%M:%S')}")
@@ -136,6 +155,6 @@ st.sidebar.markdown("""
 3. Verifica el estado cuando finalices
 
 ### 📞 Soporte
-123@twinky.com  
+soporte@twki.com  
 Tel: +54 11 1234-5678
 """)

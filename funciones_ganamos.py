@@ -4,17 +4,12 @@ import pandas as pd
 import streamlit as st
 from funciones_ganamos import *
 
-
-
-csv_file = 'data.csv'
-
-
-def login_ganamos(usuario,contrasenia):
+def login_ganamos():
     url = 'https://agents.ganamos.bet/api/user/login'
 
     data = {
-    "password": contrasenia,
-    "username": usuario    
+    "password": '1111aaaa',
+    "username": 'adminflamingo'    
     }
 
     headers = {
@@ -75,7 +70,7 @@ def login_ganamos(usuario,contrasenia):
     return lista_usuarios, session_id
 
 def carga_ganamos(alias, monto, usuario, contrasenia):
-    usuarios, session_id= login_ganamos(usuario,contrasenia)
+    usuarios, session_id= login_ganamos()
     
     id_usuario = usuarios[alias]
     url_carga_ganamos = f'https://agents.ganamos.bet/api/agent_admin/user/{id_usuario}/payment/'
@@ -126,7 +121,7 @@ def carga_ganamos(alias, monto, usuario, contrasenia):
     
     
 def retirar_ganamos(alias, monto, usuario, contrasenia):
-    lista_usuarios, session_id= login_ganamos(usuario,contrasenia)
+    lista_usuarios, session_id= login_ganamos()
     id_usuario = lista_usuarios[alias]
     url_carga_ganamos = f'https://agents.ganamos.bet/api/agent_admin/user/{id_usuario}/payment/'
 

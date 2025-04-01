@@ -5,7 +5,7 @@ import re
 import time
 
 # Configuración
-API_URL = "https://render-notify-mp.onrender.com"  # Verifica que sea correcta
+API_URL = "https://streamlit-test-eiu8.onrender.com"  # Verifica que sea correcta
 TIMEOUT_API = 25  # Aumentamos el timeout a 25 segundos
 st.set_page_config(
     page_title="Sistema de Pagos Reales",

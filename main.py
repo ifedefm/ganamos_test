@@ -5,7 +5,8 @@ import re
 import time
 
 # Configuración
-API_URL = "https://render-notify-mp.onrender.com"  # Cambia por tu URL real
+API_URL = "https://render-notify-mp.onrender.com"  # Verifica que sea correcta
+TIMEOUT_API = 25  # Aumentamos el timeout a 25 segundos
 st.set_page_config(
     page_title="Sistema de Pagos Reales",
     page_icon="💳",
@@ -36,17 +37,13 @@ def call_api(endpoint, payload):
             f"{API_URL}/{endpoint}",
             json=payload,
             headers={"Content-Type": "application/json"},
-            timeout=15
+            timeout=TIMEOUT_API  # Usamos el timeout configurado
         )
-        if response.status_code == 200:
-            return response.json()
-        else:
-            return {
-                "error": True,
-                "detail": f"Error {response.status_code}: {response.text}"
-            }
+        return response.json() if response.status_code == 200 else {"error": True, "detail": f"Error {response.status_code}"}
+    except requests.exceptions.Timeout:
+        return {"error": True, "detail": "Timeout al conectar con el servidor"}
     except Exception as e:
-        return {"error": True, "detail": str(e)}
+        return {"error": True, "detail": f"Error de conexión: {str(e)}"}
 
 # Interfaz
 st.title("💵 Sistema de Carga de Saldo")
@@ -66,11 +63,12 @@ with st.form("form_pago"):
         elif not validar_email(email_comprador):
             st.error("Ingresa un email válido")
         else:
-            result = call_api("crear_pago", {
-                "usuario_id": usuario_id,
-                "monto": float(monto),
-                "email": email_comprador
-            })
+            with st.spinner("Generando link de pago..."):
+                result = call_api("crear_pago", {
+                    "usuario_id": usuario_id,
+                    "monto": float(monto),
+                    "email": email_comprador
+                })
             
             if result.get("error"):
                 st.error(f"Error: {result.get('detail', 'Contacta al soporte')}")
@@ -88,7 +86,7 @@ with st.form("form_pago"):
                         <p><strong>Usuario:</strong> {usuario_id}</p>
                         <p><strong>Email:</strong> {email_comprador}</p>
                         <p><strong>Monto:</strong> ${monto:.2f} ARS</p>
-                        <a href="{result['url_pago']}" target="_blank" onclick="window.parent.document.getElementById('mp-clicked').click()">
+                        <a href="{result['url_pago']}" target="_blank" id="mp-button">
                             <button style='
                                 background-color: #00a650;
                                 color: white;
@@ -102,17 +100,18 @@ with st.form("form_pago"):
                             </button>
                         </a>
                     </div>
+                    <script>
+                        document.getElementById('mp-button').addEventListener('click', function() {{
+                            // Esta función se ejecutará cuando se haga clic en el botón
+                            console.log('Botón de MP clickeado');
+                        }});
+                    </script>
                     """,
                     unsafe_allow_html=True
                 )
 
-# Botón oculto para rastrear clic en MP
-if st.button("", key="mp-clicked", help="", disabled=True, visible=False):
-    st.session_state.clicked_mp_button = True
-    st.experimental_rerun()
-
-# Sección de verificación
-if st.session_state.preference_id and st.session_state.clicked_mp_button:
+# Solución alternativa para rastrear clics (sin botón oculto problemático)
+if st.session_state.preference_id:
     st.divider()
     st.subheader("Verificación de Pago")
     

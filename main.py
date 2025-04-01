@@ -124,44 +124,44 @@ if st.session_state.pago_generado:
     st.subheader("Verificación de Pago")
     
     if st.button("Consultar Estado"):
-    if not st.session_state.preference_id:
-        st.warning("Primero genera un pago")
-    else:
-        with st.spinner("Verificando estado del pago..."):
-            result = call_api("verificar_pago", {
-                "preference_id": st.session_state.preference_id,
-                "usuario_id": st.session_state.usuario_id
-            })
-            
-            st.session_state.ultima_verificacion = datetime.now()
-            
-            if result.get("error"):
-                st.error(f"Error al verificar: {result.get('detail')}")
-            elif result.get("payment_id"):  # Verificación explícita de payment_id
-                st.session_state.payment_id = result["payment_id"]
-                st.balloons()
-                st.success(f"""
-                ✅ **Pago Confirmado**  
-                - ID Transacción: {result['payment_id']}  
-                - Monto: ${result.get('monto', 0):.2f}  
-                - Fecha: {result.get('fecha', 'N/A')}
-                """)
-            else:
-                st.warning(f"""
-                ⏳ **Pago no registrado completamente**  
+        if not st.session_state.preference_id:
+            st.warning("Primero genera un pago")
+        else:
+            with st.spinner("Verificando estado del pago..."):
+                result = call_api("verificar_pago", {
+                    "preference_id": st.session_state.preference_id,
+                    "usuario_id": st.session_state.usuario_id
+                })
                 
-                ID de preferencia: `{st.session_state.preference_id}`  
+                st.session_state.ultima_verificacion = datetime.now()
                 
-                Posibles causas:  
-                1. El pago no se ha completado  
-                2. La notificación no ha sido procesada  
-                3. Problema de sincronización  
-                
-                **Solución:**  
-                1. Espera 5 minutos  
-                2. Vuelve a verificar  
-                3. Si persiste, contacta soporte  
-                """)
+                if result.get("error"):
+                    st.error(f"Error al verificar: {result.get('detail')}")
+                elif result.get("payment_id"):  # Verificación explícita de payment_id
+                    st.session_state.payment_id = result["payment_id"]
+                    st.balloons()
+                    st.success(f"""
+                    ✅ **Pago Confirmado**  
+                    - ID Transacción: {result['payment_id']}  
+                    - Monto: ${result.get('monto', 0):.2f}  
+                    - Fecha: {result.get('fecha', 'N/A')}
+                    """)
+                else:
+                    st.warning(f"""
+                    ⏳ **Pago no registrado completamente**  
+                    
+                    ID de preferencia: `{st.session_state.preference_id}`  
+                    
+                    Posibles causas:  
+                    1. El pago no se ha completado  
+                    2. La notificación no ha sido procesada  
+                    3. Problema de sincronización  
+                    
+                    **Solución:**  
+                    1. Espera 5 minutos  
+                    2. Vuelve a verificar  
+                    3. Si persiste, contacta soporte  
+                    """)
 
     # Mostrar última verificación si existe
     if st.session_state.ultima_verificacion:

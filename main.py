@@ -4,7 +4,7 @@ from datetime import datetime
 import re
 
 # Configuración
-API_URL = "https://render-notify-mp.onrender.com"  # Cambia por tu URL real
+API_URL = "https://streamlit-test-eiu8.onrender.com"  # Cambia por tu URL real
 st.set_page_config(
     page_title="Sistema de Pagos Reales",
     page_icon="💳",

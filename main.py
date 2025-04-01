@@ -123,53 +123,34 @@ if st.session_state.pago_generado:
     st.divider()
     st.subheader("Verificación de Pago")
     
-    if st.button("Consultar Estado", key="verificar_pago"):
+    if st.button("Consultar Estado"):
         if not st.session_state.preference_id:
             st.warning("Primero genera un pago")
         else:
-            with st.spinner("Buscando información del pago..."):
-                result = None
-                # Intentamos hasta 3 veces con espera entre intentos
-                for intento in range(3):
-                    result = call_api("verificar_pago", {
-                        "preference_id": st.session_state.preference_id,
-                        "usuario_id": st.session_state.usuario_id
-                    })
-                    
-                    # Si no hay error y el estado es aprobado, salimos del loop
-                    if not result.get("error") and result.get("status") == "approved":
-                        break
-                    
-                    # Esperamos 3 segundos entre intentos
-                    time.sleep(3)
+            with st.spinner("Verificando estado del pago..."):
+                result = call_api("verificar_pago", {
+                    "preference_id": st.session_state.preference_id
+                })
                 
                 st.session_state.ultima_verificacion = datetime.now()
                 
                 if result.get("error"):
-                    st.error(f"""
-                    ❌ **Error al verificar el pago**  
-                    Detalle: {result.get('detail', 'Error desconocido')}  
-                    ID de pago: `{st.session_state.preference_id}`
-                    """)
-                elif result.get("status") == "approved":
-                    st.session_state.payment_id = result.get("payment_id")
+                    st.error(f"Error: {result.get('detail')}")
+                elif result.get("payment_id"):  # Ahora verificamos payment_id
+                    st.session_state.payment_id = result["payment_id"]
                     st.balloons()
                     st.success(f"""
-                    ✅ **Pago Aprobado**  
-                    - **ID Transacción:** {result.get('payment_id')}  
-                    - **Monto:** ${result.get('monto', 0):.2f} ARS  
-                    - **Fecha:** {result.get('fecha', 'N/A')}  
+                    ✅ **Pago Confirmado**  
+                    - ID Transacción: {result['payment_id']}  
+                    - Monto: ${result.get('monto', 0):.2f}  
+                    - Fecha: {result.get('fecha', 'N/A')}
                     """)
                 else:
                     st.warning(f"""
-                    ⏳ **Estado Actual:** {result.get('status', 'pending')}  
+                    ⏳ **Pago Pendiente**  
+                    ID de preferencia: `{st.session_state.preference_id}`  
                     
-                    *Si ya realizaste el pago:*  
-                    1. Espera 5 minutos (las notificaciones pueden tardar)  
-                    2. Vuelve a verificar  
-                    3. Si persiste, contacta soporte con:  
-                       - ID de preferencia: `{st.session_state.preference_id}`  
-                       - Hora del pago: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                    Si ya pagaste, espera 2 minutos y vuelve a verificar.
                     """)
 
     # Mostrar última verificación si existe

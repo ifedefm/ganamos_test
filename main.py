@@ -5,8 +5,8 @@ import re
 import time
 
 # Configuración
-API_URL = "https://streamlit-test-eiu8.onrender.com"  # Verifica que sea correcta
-TIMEOUT_API = 25  # Aumentamos el timeout a 25 segundos
+API_URL = "https://streamlit-test-eiu8.onrender.com"  # Asegúrate que esta URL sea correcta
+TIMEOUT_API = 30  # Aumentamos el timeout a 30 segundos para Render
 st.set_page_config(
     page_title="Sistema de Pagos Reales",
     page_icon="💳",
@@ -24,10 +24,10 @@ if 'email_comprador' not in st.session_state:
     st.session_state.email_comprador = ""
 if 'ultima_verificacion' not in st.session_state:
     st.session_state.ultima_verificacion = None
-if 'clicked_mp_button' not in st.session_state:
-    st.session_state.clicked_mp_button = False
+if 'pago_generado' not in st.session_state:
+    st.session_state.pago_generado = False
 
-# Funciones auxiliares
+# Funciones auxiliares mejoradas
 def validar_email(email):
     return re.match(r"[^@]+@[^@]+\.[^@]+", email)
 
@@ -37,17 +37,30 @@ def call_api(endpoint, payload):
             f"{API_URL}/{endpoint}",
             json=payload,
             headers={"Content-Type": "application/json"},
-            timeout=TIMEOUT_API  # Usamos el timeout configurado
+            timeout=TIMEOUT_API
         )
-        return response.json() if response.status_code == 200 else {"error": True, "detail": f"Error {response.status_code}"}
+        
+        # Debug: Imprimir respuesta de la API
+        print(f"Respuesta de la API ({endpoint}):", response.status_code, response.text)
+        
+        if response.status_code == 200:
+            return response.json()
+        else:
+            return {
+                "error": True,
+                "detail": f"Error {response.status_code}: {response.text[:200]}"  # Limitar longitud del mensaje
+            }
     except requests.exceptions.Timeout:
-        return {"error": True, "detail": "Timeout al conectar con el servidor"}
-    except Exception as e:
+        return {"error": True, "detail": "El servidor tardó demasiado en responder"}
+    except requests.exceptions.RequestException as e:
         return {"error": True, "detail": f"Error de conexión: {str(e)}"}
+    except Exception as e:
+        return {"error": True, "detail": f"Error inesperado: {str(e)}"}
 
-# Interfaz
+# Interfaz principal
 st.title("💵 Sistema de Carga de Saldo")
 
+# Formulario de pago
 with st.form("form_pago"):
     col1, col2 = st.columns(2)
     with col1:
@@ -71,12 +84,13 @@ with st.form("form_pago"):
                 })
             
             if result.get("error"):
-                st.error(f"Error: {result.get('detail', 'Contacta al soporte')}")
+                st.error(f"Error al generar pago: {result.get('detail')}")
             else:
                 st.session_state.preference_id = result["preference_id"]
                 st.session_state.usuario_id = usuario_id
                 st.session_state.email_comprador = email_comprador
-                st.session_state.clicked_mp_button = False
+                st.session_state.pago_generado = True
+                st.session_state.ultima_verificacion = None
                 
                 st.success("¡Pago listo para procesar!")
                 st.markdown(
@@ -86,7 +100,7 @@ with st.form("form_pago"):
                         <p><strong>Usuario:</strong> {usuario_id}</p>
                         <p><strong>Email:</strong> {email_comprador}</p>
                         <p><strong>Monto:</strong> ${monto:.2f} ARS</p>
-                        <a href="{result['url_pago']}" target="_blank" id="mp-button">
+                        <a href="{result['url_pago']}" target="_blank">
                             <button style='
                                 background-color: #00a650;
                                 color: white;
@@ -100,57 +114,65 @@ with st.form("form_pago"):
                             </button>
                         </a>
                     </div>
-                    <script>
-                        document.getElementById('mp-button').addEventListener('click', function() {{
-                            // Esta función se ejecutará cuando se haga clic en el botón
-                            console.log('Botón de MP clickeado');
-                        }});
-                    </script>
                     """,
                     unsafe_allow_html=True
                 )
 
-# Solución alternativa para rastrear clics (sin botón oculto problemático)
-if st.session_state.preference_id:
+# Sección de verificación (solo visible si se generó un pago)
+if st.session_state.pago_generado:
     st.divider()
     st.subheader("Verificación de Pago")
     
     if st.button("Consultar Estado", key="verificar_pago"):
-        with st.spinner("Verificando estado..."):
-            for intento in range(3):  # Reintentar hasta 3 veces
-                result = call_api("verificar_pago", {
-                    "preference_id": st.session_state.preference_id,
-                    "usuario_id": st.session_state.usuario_id
-                })
+        if not st.session_state.preference_id:
+            st.warning("Primero genera un pago")
+        else:
+            with st.spinner("Buscando información del pago..."):
+                result = None
+                # Intentamos hasta 3 veces con espera entre intentos
+                for intento in range(3):
+                    result = call_api("verificar_pago", {
+                        "preference_id": st.session_state.preference_id,
+                        "usuario_id": st.session_state.usuario_id
+                    })
+                    
+                    # Si no hay error y el estado es aprobado, salimos del loop
+                    if not result.get("error") and result.get("status") == "approved":
+                        break
+                    
+                    # Esperamos 3 segundos entre intentos
+                    time.sleep(3)
                 
-                if not result.get("error") and result.get("status") == "approved":
-                    break
-                time.sleep(2)  # Espera 2 segundos entre intentos
-            
-            st.session_state.ultima_verificacion = datetime.now()
-            
-            if result.get("error"):
-                st.error(f"Error: {result.get('detail')}")
-            elif result.get("status") == "approved":
-                st.session_state.payment_id = result.get("payment_id")
-                st.balloons()
-                st.success(f"""
-                ✅ **Pago Aprobado**  
-                - **ID Transacción:** {result.get('payment_id')}  
-                - **Monto:** ${result.get('monto', 0):.2f} ARS  
-                - **Fecha:** {result.get('fecha', 'N/A')}  
-                """)
-            else:
-                st.warning(f"""
-                ⏳ **Estado Actual:** {result.get('status', 'pending')}  
+                st.session_state.ultima_verificacion = datetime.now()
                 
-                *Si ya realizaste el pago:*  
-                1. Espera 3 minutos  
-                2. Vuelve a verificar  
-                3. Si persiste, contacta soporte con este ID:  
-                `{st.session_state.preference_id}`
-                """)
+                if result.get("error"):
+                    st.error(f"""
+                    ❌ **Error al verificar el pago**  
+                    Detalle: {result.get('detail', 'Error desconocido')}  
+                    ID de pago: `{st.session_state.preference_id}`
+                    """)
+                elif result.get("status") == "approved":
+                    st.session_state.payment_id = result.get("payment_id")
+                    st.balloons()
+                    st.success(f"""
+                    ✅ **Pago Aprobado**  
+                    - **ID Transacción:** {result.get('payment_id')}  
+                    - **Monto:** ${result.get('monto', 0):.2f} ARS  
+                    - **Fecha:** {result.get('fecha', 'N/A')}  
+                    """)
+                else:
+                    st.warning(f"""
+                    ⏳ **Estado Actual:** {result.get('status', 'pending')}  
+                    
+                    *Si ya realizaste el pago:*  
+                    1. Espera 5 minutos (las notificaciones pueden tardar)  
+                    2. Vuelve a verificar  
+                    3. Si persiste, contacta soporte con:  
+                       - ID de preferencia: `{st.session_state.preference_id}`  
+                       - Hora del pago: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+                    """)
 
+    # Mostrar última verificación si existe
     if st.session_state.ultima_verificacion:
         st.caption(f"Última verificación: {st.session_state.ultima_verificacion.strftime('%H:%M:%S')}")
 
@@ -165,3 +187,7 @@ st.sidebar.markdown("""
 soporte@ejemplo.com  
 Tel: +54 11 1234-5678
 """)
+
+# Debug: Mostrar estado de la sesión (opcional)
+if st.sidebar.checkbox("Mostrar estado de depuración"):
+    st.sidebar.write("Estado actual:", st.session_state)

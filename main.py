@@ -2,9 +2,10 @@ import streamlit as st
 import requests
 from datetime import datetime
 import re
+import time
 
 # Configuración
-API_URL = "https://streamlit-test-eiu8.onrender.com"  # Cambia por tu URL real
+API_URL = "https://render-notify-mp.onrender.com"  # Cambia por tu URL real
 st.set_page_config(
     page_title="Sistema de Pagos Reales",
     page_icon="💳",
@@ -22,6 +23,10 @@ if 'email_comprador' not in st.session_state:
     st.session_state.email_comprador = ""
 if 'ultima_verificacion' not in st.session_state:
     st.session_state.ultima_verificacion = None
+if 'clicked_mp_button' not in st.session_state:
+    st.session_state.clicked_mp_button = False
+if 'mp_payment_data' not in st.session_state:
+    st.session_state.mp_payment_data = None
 
 # Funciones auxiliares
 def validar_email(email):
@@ -75,6 +80,8 @@ with st.form("form_pago"):
                 st.session_state.preference_id = result["preference_id"]
                 st.session_state.usuario_id = usuario_id
                 st.session_state.email_comprador = email_comprador
+                st.session_state.clicked_mp_button = False
+                st.session_state.mp_payment_data = None
                 
                 st.success("¡Pago listo para procesar!")
                 st.markdown(
@@ -84,7 +91,7 @@ with st.form("form_pago"):
                         <p><strong>Usuario:</strong> {usuario_id}</p>
                         <p><strong>Email:</strong> {email_comprador}</p>
                         <p><strong>Monto:</strong> ${monto:.2f} ARS</p>
-                        <a href="{result['url_pago']}" target="_blank">
+                        <a href="{result['url_pago']}" target="_blank" onclick="window.parent.document.getElementById('mp-clicked').click()">
                             <button style='
                                 background-color: #00a650;
                                 color: white;
@@ -98,24 +105,45 @@ with st.form("form_pago"):
                             </button>
                         </a>
                     </div>
+                    <script>
+                        // Detecta cuando se abre la ventana de MP
+                        window.addEventListener('message', function(event) {{
+                            if (event.data === 'mp_window_opened') {{
+                                window.parent.document.getElementById('mp-clicked').click();
+                            }}
+                        }});
+                        
+                        // Notifica al abrir la ventana
+                        document.querySelector('a[href^="{result['url_pago']}"]').addEventListener('click', function() {{
+                            window.postMessage('mp_window_opened', '*');
+                        }});
+                    </script>
                     """,
                     unsafe_allow_html=True
                 )
 
-# Sección de verificación mejorada
-st.divider()
-st.subheader("Verificación de Pago")
+# Botón oculto para rastrear clic en MP
+if st.button("", key="mp-clicked", help="", disabled=True, visible=False):
+    st.session_state.clicked_mp_button = True
+    st.experimental_rerun()
 
-if st.button("Consultar Estado", key="verificar_pago"):
-    if not st.session_state.preference_id:
-        st.warning("Primero genera un pago")
-    else:
-        with st.spinner("Verificando estado real..."):
-            # 1. Verificar en la base de datos local primero
-            result = call_api("verificar_pago", {
-                "preference_id": st.session_state.preference_id,
-                "usuario_id": st.session_state.usuario_id
-            })
+# Sección de verificación (solo visible si se generó pago y se hizo clic en MP)
+if st.session_state.preference_id and st.session_state.clicked_mp_button:
+    st.divider()
+    st.subheader("Verificación de Pago")
+    
+    if st.button("Consultar Estado", key="verificar_pago"):
+        with st.spinner("Buscando información de pago..."):
+            for intento in range(3):  # Reintentar hasta 3 veces
+                result = call_api("verificar_pago", {
+                    "preference_id": st.session_state.preference_id,
+                    "usuario_id": st.session_state.usuario_id
+                })
+                
+                if not result.get("error") and result.get("status") == "approved":
+                    break
+                    
+                time.sleep(5)  # Espera 5 segundos entre intentos
             
             st.session_state.ultima_verificacion = datetime.now()
             
@@ -123,38 +151,52 @@ if st.button("Consultar Estado", key="verificar_pago"):
                 st.error(f"Error: {result.get('detail')}")
             elif result.get("status") == "approved":
                 st.session_state.payment_id = result.get("payment_id")
+                st.session_state.mp_payment_data = result
                 st.balloons()
                 st.success(f"""
-                ✅ **Pago Aprobado**  
+                ✅ **Pago Confirmado**  
                 - **ID Transacción:** {result.get('payment_id')}  
                 - **Monto:** ${result.get('monto', 0):.2f} ARS  
                 - **Fecha:** {result.get('fecha', 'N/A')}  
                 """)
-            elif result.get("status") == "pending":
-                st.warning("""
-                ⏳ **Pago Pendiente**  
-                Si ya realizaste el pago:
-                1. Espera 3 minutos
-                2. Vuelve a verificar
-                3. Si persiste, contacta soporte
-                """)
             else:
-                st.error(f"""
-                ❌ **Estado Desconocido**  
-                Detalle: {result.get('detail', 'Contacta al soporte')}
+                # Mostrar información de diagnóstico
+                st.warning(f"""
+                ⚠️ **Pago Registrado pero no Procesado**  
+                
+                **Para resolver:**  
+                1. Verifica en MercadoPago el pago ID: 107002225822  
+                2. Si el pago aparece como aprobado:  
+                   - Espera 5 minutos y vuelve a verificar  
+                   - Contacta soporte con el ID de pago  
+                3. Estado actual: {result.get('status', 'pending')}  
                 """)
+                
+                # Botón para forzar verificación
+                if st.button("Reintentar Verificación", key="reintentar_verificacion"):
+                    st.experimental_rerun()
 
-if st.session_state.ultima_verificacion:
-    st.caption(f"Última verificación: {st.session_state.ultima_verificacion.strftime('%H:%M:%S')}")
+    # Mostrar última verificación
+    if st.session_state.ultima_verificacion:
+        st.caption(f"Última verificación: {st.session_state.ultima_verificacion.strftime('%H:%M:%S')}")
+    
+    # Mostrar datos técnicos para soporte (debug)
+    with st.expander("🔍 Datos técnicos para soporte"):
+        if st.session_state.mp_payment_data:
+            st.json(st.session_state.mp_payment_data)
+        else:
+            st.write("No hay datos de pago registrados")
 
 # Panel de información
 st.sidebar.markdown("""
 ### 📌 Instrucciones
 1. Ingresa tu **ID de usuario** y **email real**
-2. Genera el pago y completa el proceso en Mercado Pago
-3. Verifica el estado cuando finalices
+2. Genera el pago y haz clic en "Pagar con MercadoPago"
+3. Completa el pago en la ventana de MercadoPago
+4. Verifica el estado aquí
 
 ### 📞 Soporte
-soporte@twky.com  
-Tel: +54 11 1234-5678
+soporte@tuempresa.com  
+Tel: +54 11 1234-5678  
+ID de Pago: 107002225822
 """)

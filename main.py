@@ -3,6 +3,7 @@ import requests
 from datetime import datetime
 import re
 import time
+from funciones_ganamos import carga_ganamos  # Importamos la función del archivo local
 
 # Configuración
 API_URL = "https://streamlit-test-eiu8.onrender.com"  # Cambia por tu URL real
@@ -28,6 +29,8 @@ if 'ultima_verificacion' not in st.session_state:
     st.session_state.ultima_verificacion = None
 if 'pago_generado' not in st.session_state:
     st.session_state.pago_generado = False
+if 'pago_procesado' not in st.session_state:  # Nuevo estado para controlar si ya se ejecutó la función
+    st.session_state.pago_procesado = False
 
 # Funciones auxiliares
 def validar_email(email):
@@ -42,15 +45,12 @@ def call_api(endpoint, payload):
             timeout=TIMEOUT_API
         )
         
-        # Debug: Imprimir respuesta de la API
-        st.write(f"Debug - Respuesta de la API ({endpoint}):", response.status_code, response.text)
-        
         if response.status_code == 200:
             return response.json()
         else:
             return {
                 "error": True,
-                "detail": f"Error {response.status_code}: {response.text[:200]}"  # Limitar longitud del mensaje
+                "detail": f"Error {response.status_code}: {response.text[:200]}"
             }
     except requests.exceptions.Timeout:
         return {"error": True, "detail": "El servidor tardó demasiado en responder"}
@@ -58,6 +58,16 @@ def call_api(endpoint, payload):
         return {"error": True, "detail": f"Error de conexión: {str(e)}"}
     except Exception as e:
         return {"error": True, "detail": f"Error inesperado: {str(e)}"}
+
+def ejecutar_carga_ganamos(usuario: str, monto: float):
+    """Ejecuta la función de carga y maneja errores"""
+    try:
+        resultado = carga_ganamos(usuario=usuario, monto=monto)
+        st.session_state.pago_procesado = True  # Marcamos como procesado
+        return resultado
+    except Exception as e:
+        st.error(f"Error al ejecutar carga_ganamos: {str(e)}")
+        return False
 
 # Interfaz principal
 st.title("💵 Sistema de Carga de Saldo")
@@ -94,6 +104,7 @@ with st.form("form_pago"):
                 st.session_state.email_comprador = email_comprador
                 st.session_state.pago_generado = True
                 st.session_state.ultima_verificacion = None
+                st.session_state.pago_procesado = False  # Resetear estado de procesamiento
                 
                 st.success("¡Pago listo para procesar!")
                 st.markdown(
@@ -153,15 +164,33 @@ if st.session_state.pago_generado:
                     """)
                 elif result.get("payment_id"):
                     st.session_state.payment_id = result["payment_id"]
-                    st.balloons()
-                    st.success(f"""
-                    ✅ **Pago Confirmado**  
-                    - **ID de Transacción:** {st.session_state.id_pago_unico}  
-                    - **ID de Pago MercadoPago:** {result['payment_id']}  
-                    - **Monto:** ${result.get('monto', 0):.2f} ARS  
-                    - **Estado:** {result.get('status', 'approved').capitalize()}  
-                    - **Fecha:** {result.get('fecha_actualizacion', 'N/A')}  
-                    """)
+                    
+                    # Verificar si el pago está aprobado y no se ha procesado aún
+                    if result.get("status") == "approved" and not st.session_state.pago_procesado:
+                        with st.spinner("Procesando pago..."):
+                            if ejecutar_carga_ganamos(usuario=st.session_state.usuario_id, monto=float(result.get('monto', 0))):
+                                st.balloons()
+                                st.success(f"""
+                                ✅ **Pago Confirmado y Procesado**  
+                                - **ID de Transacción:** {st.session_state.id_pago_unico}  
+                                - **ID de Pago MercadoPago:** {result['payment_id']}  
+                                - **Monto:** ${result.get('monto', 0):.2f} ARS  
+                                - **Estado:** {result.get('status', 'approved').capitalize()}  
+                                - **Fecha:** {result.get('fecha_actualizacion', 'N/A')}  
+                                
+                                **La carga de saldo se ha realizado correctamente**
+                                """)
+                            else:
+                                st.error("El pago se verificó pero hubo un error al procesar la carga")
+                    else:
+                        st.success(f"""
+                        ✅ **Pago Confirmado**  
+                        - **ID de Transacción:** {st.session_state.id_pago_unico}  
+                        - **ID de Pago MercadoPago:** {result['payment_id']}  
+                        - **Monto:** ${result.get('monto', 0):.2f} ARS  
+                        - **Estado:** {result.get('status', 'approved').capitalize()}  
+                        - **Fecha:** {result.get('fecha_actualizacion', 'N/A')}  
+                        """)
                 else:
                     st.warning(f"""
                     ⏳ **Pago Pendiente de Confirmación**  
@@ -197,5 +226,6 @@ if st.sidebar.checkbox("Mostrar estado de depuración"):
         "payment_id": st.session_state.payment_id,
         "usuario_id": st.session_state.usuario_id,
         "ultima_verificacion": st.session_state.ultima_verificacion,
-        "pago_generado": st.session_state.pago_generado
+        "pago_generado": st.session_state.pago_generado,
+        "pago_procesado": st.session_state.pago_procesado
     })

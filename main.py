@@ -198,7 +198,7 @@ if st.session_state.pago_generado:
                             # Ejecutar la función carga_ganamos con reintentos
                             ejecucion_exitosa = ejecutar_carga_ganamos(
                                 alias=st.session_state.usuario_id,
-                                monto=result.get('monto', 0)
+                                monto=result.get('monto', 0))
                             
                             # Mostrar resultado solo si no hubo éxito
                             if not ejecucion_exitosa:

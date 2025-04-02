@@ -63,53 +63,20 @@ def call_api(endpoint, payload):
 
 def ejecutar_carga_ganamos(alias: str, monto: float):
     """Ejecuta la función de carga_ganamos con manejo robusto de errores"""
-    max_intentos = 3
-    intento = 0
-    
-    while intento < max_intentos:
-        try:
-            resultado, balance = carga_ganamos(alias=alias, monto=monto)
-            
-            if resultado is True:
-                st.session_state.pago_procesado = True
-                st.session_state.intentos_autenticacion = 0  # Resetear contador
-                st.success(f"✅ Carga en Ganamos procesada correctamente. Balance actual: ${balance:.2f}")
-                return True
-            else:
-                st.warning(f"Intento {intento+1}: La carga no fue exitosa. Balance actual: ${balance:.2f}")
-                
-        except Exception as e:
-            error_msg = str(e)
-            if "session_id" in error_msg or "autenticación" in error_msg.lower():
-                st.session_state.intentos_autenticacion += 1
-                st.warning(f"Intento {intento+1}: Error de autenticación. Reintentando...")
-                
-                if st.session_state.intentos_autenticacion >= 3:
-                    st.error("""
-                    🔐 **Problema persistente de autenticación**
-                    
-                    Por favor:
-                    1. Verifica que el servicio Ganamos esté disponible
-                    2. Intenta recargar la página (F5)
-                    3. Contacta al soporte técnico
-                    """)
-                    return False
-            else:
-                st.error(f"Intento {intento+1}: Error inesperado - {error_msg}")
+    try:
+        resultado, detalle = carga_ganamos(alias=alias, monto=monto)
         
-        intento += 1
-        if intento < max_intentos:
-            time.sleep(5)  # Mayor tiempo entre intentos
-    
-    st.error("""
-    ❌ No se pudo completar la carga después de 3 intentos. 
-    
-    **Por favor:**
-    1. Verifica que el ID de usuario exista en Ganamos
-    2. Revisa que el monto sea válido
-    3. Contacta al soporte técnico con el ID de transacción
-    """)
-    return False
+        if resultado is True:
+            st.session_state.pago_procesado = True
+            st.success(f"✅ Carga exitosa. Balance actual: ${detalle:.2f}")
+            return True
+        else:
+            st.error(f"❌ Error en la carga: {detalle}")
+            return False
+            
+    except Exception as e:
+        st.error(f"🔥 Error crítico: {str(e)}")
+        return False
 
 # Interfaz principal
 st.title("💵 Sistema de Carga de Saldo")

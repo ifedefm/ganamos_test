@@ -65,7 +65,7 @@ def ejecutar_carga_ganamos(usuario: str, monto: float):
         st.write(f"Llamando a carga_ganamos con usuario={usuario}, monto={monto}")
         resultado = carga_ganamos(alias=usuario, monto=monto)
         st.write(f"Resultado de carga_ganamos: {resultado}")
-        st.session_state.pago_procesado = True
+        st.session_state.pago_procesado = False
         return resultado
     except Exception as e:
         st.error(f"Error al ejecutar carga_ganamos: {str(e)}")

@@ -31,8 +31,8 @@ if 'pago_generado' not in st.session_state:
     st.session_state.pago_generado = False
 if 'pago_procesado' not in st.session_state:
     st.session_state.pago_procesado = False
-if 'sesion_ganamos' not in st.session_state:
-    st.session_state.sesion_ganamos = None
+if 'intentos_autenticacion' not in st.session_state:
+    st.session_state.intentos_autenticacion = 0
 
 # Funciones auxiliares
 def validar_email(email):
@@ -62,31 +62,54 @@ def call_api(endpoint, payload):
         return {"error": True, "detail": f"Error inesperado: {str(e)}"}
 
 def ejecutar_carga_ganamos(alias: str, monto: float):
-    """Ejecuta un único intento de carga con manejo de errores"""
-    try:
-        # Realizar un único intento de carga
-        resultado, balance = carga_ganamos(alias=alias, monto=monto)
-        
-        if resultado is True:
-            st.session_state.pago_procesado = True
-            st.success(f"✅ Carga en Ganamos procesada correctamente. Balance actual: ${balance:.2f}")
-            return True
-        else:
-            st.error(f"❌ La carga no fue exitosa. Balance actual: ${balance:.2f}")
-            return False
+    """Ejecuta la función de carga_ganamos con manejo robusto de errores"""
+    max_intentos = 3
+    intento = 0
+    
+    while intento < max_intentos:
+        try:
+            resultado, balance = carga_ganamos(alias=alias, monto=monto)
             
-    except Exception as e:
-        error_msg = str(e)
-        st.error(f"""
-        🔐 Error de autenticación en Ganamos
+            if resultado is True:
+                st.session_state.pago_procesado = True
+                st.session_state.intentos_autenticacion = 0  # Resetear contador
+                st.success(f"✅ Carga en Ganamos procesada correctamente. Balance actual: ${balance:.2f}")
+                return True
+            else:
+                st.warning(f"Intento {intento+1}: La carga no fue exitosa. Balance actual: ${balance:.2f}")
+                
+        except Exception as e:
+            error_msg = str(e)
+            if "session_id" in error_msg or "autenticación" in error_msg.lower():
+                st.session_state.intentos_autenticacion += 1
+                st.warning(f"Intento {intento+1}: Error de autenticación. Reintentando...")
+                
+                if st.session_state.intentos_autenticacion >= 3:
+                    st.error("""
+                    🔐 **Problema persistente de autenticación**
+                    
+                    Por favor:
+                    1. Verifica que el servicio Ganamos esté disponible
+                    2. Intenta recargar la página (F5)
+                    3. Contacta al soporte técnico
+                    """)
+                    return False
+            else:
+                st.error(f"Intento {intento+1}: Error inesperado - {error_msg}")
         
-        Detalle: {error_msg}
-        
-        **Por favor:**
-        1. Verifica que el servicio Ganamos esté disponible
-        2. Contacta al soporte técnico con el ID de transacción
-        """)
-        return False
+        intento += 1
+        if intento < max_intentos:
+            time.sleep(5)  # Mayor tiempo entre intentos
+    
+    st.error("""
+    ❌ No se pudo completar la carga después de 3 intentos. 
+    
+    **Por favor:**
+    1. Verifica que el ID de usuario exista en Ganamos
+    2. Revisa que el monto sea válido
+    3. Contacta al soporte técnico con el ID de transacción
+    """)
+    return False
 
 # Interfaz principal
 st.title("💵 Sistema de Carga de Saldo")
@@ -163,9 +186,15 @@ if st.session_state.pago_generado:
             st.warning("Primero genera un pago")
         else:
             with st.spinner("Verificando estado del pago..."):
-                result = call_api("verificar_pago", {
-                    "id_pago_unico": st.session_state.id_pago_unico
-                })
+                result = None
+                for intento in range(3):
+                    result = call_api("verificar_pago", {
+                        "id_pago_unico": st.session_state.id_pago_unico
+                    })
+                    
+                    if not result.get("error"):
+                        break
+                    time.sleep(2)
                 
                 st.session_state.ultima_verificacion = datetime.now()
                 

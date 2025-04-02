@@ -3,12 +3,11 @@ import requests
 from datetime import datetime
 import re
 import time
-from funciones_ganamos import carga_ganamos  # Importamos la función del archivo local
-import traceback
+from funciones_ganamos import carga_ganamos
 
 # Configuración
-API_URL = "https://streamlit-test-eiu8.onrender.com"  # Cambia por tu URL real
-TIMEOUT_API = 30  # Timeout aumentado para Render
+API_URL = "https://streamlit-test-eiu8.onrender.com"
+TIMEOUT_API = 30
 st.set_page_config(
     page_title="Sistema de Pagos Reales",
     page_icon="💳",
@@ -32,6 +31,8 @@ if 'pago_generado' not in st.session_state:
     st.session_state.pago_generado = False
 if 'pago_procesado' not in st.session_state:
     st.session_state.pago_procesado = False
+if 'intentos_autenticacion' not in st.session_state:
+    st.session_state.intentos_autenticacion = 0
 
 # Funciones auxiliares
 def validar_email(email):
@@ -62,26 +63,53 @@ def call_api(endpoint, payload):
 
 def ejecutar_carga_ganamos(alias: str, monto: float):
     """Ejecuta la función de carga_ganamos con manejo robusto de errores"""
-    resultado = carga_ganamos(alias=alias, monto=monto)
-    if resultado[0] == True:
-        st.session_state.pago_procesado = True
-        st.success("✅ Carga en Ganamos procesada correctamente")
-        return resultado
-    else:
-        st.write(traceback.format_exc())
-        st.warning(f"Error en la carga en Ganamos: {resultado[1] , resultado[0]}")
-
-
-
+    max_intentos = 3
+    intento = 0
+    
+    while intento < max_intentos:
+        try:
+            resultado, balance = carga_ganamos(alias=alias, monto=monto)
+            
+            if resultado is True:
+                st.session_state.pago_procesado = True
+                st.session_state.intentos_autenticacion = 0  # Resetear contador
+                st.success(f"✅ Carga en Ganamos procesada correctamente. Balance actual: ${balance:.2f}")
+                return True
+            else:
+                st.warning(f"Intento {intento+1}: La carga no fue exitosa. Balance actual: ${balance:.2f}")
+                
+        except Exception as e:
+            error_msg = str(e)
+            if "session_id" in error_msg or "autenticación" in error_msg.lower():
+                st.session_state.intentos_autenticacion += 1
+                st.warning(f"Intento {intento+1}: Error de autenticación. Reintentando...")
+                
+                if st.session_state.intentos_autenticacion >= 3:
+                    st.error("""
+                    🔐 **Problema persistente de autenticación**
+                    
+                    Por favor:
+                    1. Verifica que el servicio Ganamos esté disponible
+                    2. Intenta recargar la página (F5)
+                    3. Contacta al soporte técnico
+                    """)
+                    return False
+            else:
+                st.error(f"Intento {intento+1}: Error inesperado - {error_msg}")
+        
+        intento += 1
+        if intento < max_intentos:
+            time.sleep(5)  # Mayor tiempo entre intentos
+    
     st.error("""
     ❌ No se pudo completar la carga después de 3 intentos. 
     
     **Por favor:**
-    1. Verifica que las credenciales en funciones_ganamos.py sean correctas
-    2. Revisa la conexión a internet
+    1. Verifica que el ID de usuario exista en Ganamos
+    2. Revisa que el monto sea válido
     3. Contacta al soporte técnico con el ID de transacción
     """)
-    return None
+    return False
 
 # Interfaz principal
 st.title("💵 Sistema de Carga de Saldo")
@@ -118,7 +146,8 @@ with st.form("form_pago"):
                 st.session_state.email_comprador = email_comprador
                 st.session_state.pago_generado = True
                 st.session_state.ultima_verificacion = None
-                st.session_state.pago_procesado = False  # Resetear estado de procesamiento
+                st.session_state.pago_procesado = False
+                st.session_state.intentos_autenticacion = 0
                 
                 st.success("¡Pago listo para procesar!")
                 st.markdown(
@@ -157,7 +186,6 @@ if st.session_state.pago_generado:
             st.warning("Primero genera un pago")
         else:
             with st.spinner("Verificando estado del pago..."):
-                # Intentar hasta 3 veces con delay
                 result = None
                 for intento in range(3):
                     result = call_api("verificar_pago", {
@@ -166,7 +194,7 @@ if st.session_state.pago_generado:
                     
                     if not result.get("error"):
                         break
-                    time.sleep(2)  # Espera 2 segundos entre intentos
+                    time.sleep(2)
                 
                 st.session_state.ultima_verificacion = datetime.now()
                 
@@ -179,31 +207,18 @@ if st.session_state.pago_generado:
                 elif result.get("payment_id"):
                     st.session_state.payment_id = result["payment_id"]
                     
-                    # Verificar si el pago está aprobado y no se ha procesado aún
                     if result.get("status") == "approved" and not st.session_state.pago_procesado:
                         with st.spinner("Procesando pago en el sistema Ganamos..."):
-                            # Ejecutar la función carga_ganamos con reintentos
-                            ejecucion_exitosa = ejecutar_carga_ganamos(
+                            if ejecutar_carga_ganamos(
                                 alias=st.session_state.usuario_id,
-                                monto=result.get('monto', 0))
-                            
-                            # Mostrar resultado solo si no hubo éxito
-                            if not ejecucion_exitosa:
-                                st.warning("""
-                                ⚠️ **Pago verificado pero hubo un error al procesar la carga**
-                                
-                                El pago en MercadoPago fue exitoso, pero no se pudo completar 
-                                la carga en el sistema Ganamos. Por favor:
-                                
-                                1. Espera unos minutos y verifica nuevamente
-                                2. Si persiste, contacta al soporte con el ID de transacción
-                                """)
-                                # No marcamos como procesado para permitir reintentos
+                                monto=result.get('monto', 0)
+                            ):
+                                st.balloons()
+                            else:
                                 st.session_state.pago_procesado = False
                     
-                    st.balloons()
                     st.success(f"""
-                    ✅ **Pago Confirmado**  
+                    ✅ **Pago Confirmado en MercadoPago**  
                     - **ID de Transacción:** {st.session_state.id_pago_unico}  
                     - **ID de Pago MercadoPago:** {result['payment_id']}  
                     - **Monto:** ${result.get('monto', 0):.2f} ARS  
@@ -237,14 +252,3 @@ soporte@ejemplo.com
 Tel: +54 11 1234-5678
 """)
 
-# Debug: Mostrar estado de la sesión
-if st.sidebar.checkbox("Mostrar estado de depuración"):
-    st.sidebar.write("Estado actual de la sesión:", {
-        "id_pago_unico": st.session_state.id_pago_unico,
-        "preference_id": st.session_state.preference_id,
-        "payment_id": st.session_state.payment_id,
-        "usuario_id": st.session_state.usuario_id,
-        "ultima_verificacion": st.session_state.ultima_verificacion,
-        "pago_generado": st.session_state.pago_generado,
-        "pago_procesado": st.session_state.pago_procesado
-    })

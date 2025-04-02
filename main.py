@@ -4,6 +4,7 @@ from datetime import datetime
 import re
 import time
 from funciones_ganamos import carga_ganamos  # Importamos la función del archivo local
+import traceback
 
 # Configuración
 API_URL = "https://streamlit-test-eiu8.onrender.com"  # Cambia por tu URL real
@@ -61,31 +62,17 @@ def call_api(endpoint, payload):
 
 def ejecutar_carga_ganamos(alias: str, monto: float):
     """Ejecuta la función de carga_ganamos con manejo robusto de errores"""
-    max_intentos = 3
-    intento = 0
-    
-    while intento < max_intentos:
-        try:
-            resultado = carga_ganamos(alias=alias, monto=monto)
-            if resultado[0] == True:
-                st.session_state.pago_procesado = True
-                st.success("✅ Carga en Ganamos procesada correctamente")
-                return resultado
-            elif resultado:
-                st.warning(f"Intento {intento+1}: La carga no fue exitosa. Motivo: {resultado.get('message', 'Desconocido')}")
-            else:
-                st.warning(f"Intento {intento+1}: La carga no fue exitosa (respuesta vacía)")
-        except Exception as e:
-            error_msg = str(e)
-            if "session_id" in error_msg:
-                st.warning(f"Intento {intento+1}: Error de autenticación. Reintentando...")
-            else:
-                st.error(f"Intento {intento+1}: Error inesperado - {error_msg}")
-        
-        intento += 1
-        if intento < max_intentos:
-            time.sleep(5)  # Espera 5 segundos entre intentos
-    
+    resultado = carga_ganamos(alias=alias, monto=monto)
+    if resultado[0] == True:
+        st.session_state.pago_procesado = True
+        st.success("✅ Carga en Ganamos procesada correctamente")
+        return resultado
+    else:
+        st.write(traceback.format_exc())
+        st.warning(f"Error en la carga en Ganamos: {resultado[1] , resultado[0]}")
+
+
+
     st.error("""
     ❌ No se pudo completar la carga después de 3 intentos. 
     

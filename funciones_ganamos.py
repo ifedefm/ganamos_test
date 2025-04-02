@@ -8,55 +8,65 @@ def login_ganamos():
     url = 'https://agents.ganamos.bet/api/user/login'
 
     data = {
-    "password": '1111aaaa',
-    "username": 'adminflamingo'    
+        "password": '1111aaaa',
+        "username": 'adminflamingo'    
     }
 
     headers = {
-    "authority": "agents.ganamos.bet",
-    "method": "POST",
-    "path": "/api/user/login",
-    "scheme": "https",
-    "Accept": "application/json, text/plain, */*",
-    "Accept-Encoding": "gzip, deflate, br, zstd",
-    "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
-    "Cache-Control": "no-cache",
-    "Content-Length": "50",
-    "Content-Type": "application/json;charset=UTF-8",
-    "Origin": "https://agents.ganamos.bet",
-    "Pragma": "no-cache",
-    "Referer": "https://agents.ganamos.bet/",
-    "Sec-Ch-Ua": "\"Not A(Brand\";v=\"99\", \"Google Chrome\";v=\"121\", \"Chromium\";v=\"121\"",
-    "Sec-Ch-Ua-Mobile": "?0",
-    "Sec-Ch-Ua-Platform": "\"Windows\"",
-    "Sec-Fetch-Dest": "empty",
-    "Sec-Fetch-Mode": "cors",
-    "Sec-Fetch-Site": "same-origin",
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+        "authority": "agents.ganamos.bet",
+        "method": "POST",
+        "path": "/api/user/login",
+        "scheme": "https",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Encoding": "gzip, deflate, br, zstd",
+        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+        "Cache-Control": "no-cache",
+        "Content-Length": "50",
+        "Content-Type": "application/json;charset=UTF-8",
+        "Origin": "https://agents.ganamos.bet",
+        "Pragma": "no-cache",
+        "Referer": "https://agents.ganamos.bet/",
+        "Sec-Ch-Ua": "\"Not A(Brand\";v=\"99\", \"Google Chrome\";v=\"121\", \"Chromium\";v=\"121\"",
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": "\"Windows\"",
+        "Sec-Fetch-Dest": "empty",
+        "Sec-Fetch-Mode": "cors",
+        "Sec-Fetch-Site": "same-origin",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
     }
 
     response = requests.post(url, json=data, headers=headers)
-    if response.status_code == 200:
+    
+    if response.status_code == 200 and "session" in response.cookies:
         session_id = response.cookies["session"]
-
+    else:
+        raise Exception("Error en el login: No se pudo obtener session_id")
+    
+    # Continúa con el código solo si session_id fue obtenido correctamente
     header_check = {
-    "accept": "application/json, text/plain, */*",
-    "accept-encoding": "gzip, deflate, br, zstd",
-    "accept-language": "es-419,es;q=0.9,en;q=0.8,pt;q=0.7,it;q=0.6",
-    "priority": "u=1, i",
-    "referer": "https://agents.ganamos.bet/",
-    "sec-ch-ua": "\"Not)A;Brand\";v=\"99\", \"Google Chrome\";v=\"127\", \"Chromium\";v=\"127\"",
-    "sec-ch-ua-mobile": "?0",
-    "sec-ch-ua-platform": "\"Windows\"",
-    "sec-fetch-dest": "empty",
-    "sec-fetch-mode": "cors",
-    "sec-fetch-site": "same-origin",
-    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-    'cookie': f'session={session_id}'
+        "accept": "application/json, text/plain, */*",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "es-419,es;q=0.9,en;q=0.8,pt;q=0.7,it;q=0.6",
+        "priority": "u=1, i",
+        "referer": "https://agents.ganamos.bet/",
+        "sec-ch-ua": "\"Not)A;Brand\";v=\"99\", \"Google Chrome\";v=\"127\", \"Chromium\";v=\"127\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+        'cookie': f'session={session_id}'
     }
+
     url_check = "https://agents.ganamos.bet/api/user/check"
     response_check = requests.get(url_check, headers=header_check)
+    
+    if response_check.status_code != 200:
+        raise Exception("Error en la verificación de usuario.")
+
     parent_id = response_check.json()['result']['id']
+    
     url_users = 'https://agents.ganamos.bet/api/agent_admin/user/'
     params_users = {
         'count': '10',
@@ -66,7 +76,12 @@ def login_ganamos():
         'is_direct_structure': 'false'
     }
     response_users = requests.get(url_users, params=params_users, headers=header_check)
-    lista_usuarios = {x['username']:x['id'] for x in response_users.json()["result"]["users"]}
+
+    if response_users.status_code != 200:
+        raise Exception("Error obteniendo lista de usuarios.")
+
+    lista_usuarios = {x['username']: x['id'] for x in response_users.json()["result"]["users"]}
+    
     return lista_usuarios, session_id
 
 def carga_ganamos(alias, monto):

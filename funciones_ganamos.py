@@ -71,7 +71,6 @@ def login_ganamos():
 
 def carga_ganamos(alias, monto):
     usuarios, session_id= login_ganamos()
-    
     id_usuario = usuarios[alias]
     url_carga_ganamos = f'https://agents.ganamos.bet/api/agent_admin/user/{id_usuario}/payment/'
 

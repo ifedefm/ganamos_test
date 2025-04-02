@@ -62,9 +62,9 @@ def call_api(endpoint, payload):
 def ejecutar_carga_ganamos(usuario: str, monto: float):
     """Ejecuta la función de carga y maneja errores"""
     try:
-        resultado = carga_ganamos(alias=usuario, monto=monto)
+        carga_ganamos(alias=usuario, monto=monto)
         st.session_state.pago_procesado = True  # Marcamos como procesado
-        return resultado
+        return True
     except Exception as e:
         st.error(f"Error al ejecutar carga_ganamos: {str(e)}")
         return False

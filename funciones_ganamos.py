@@ -5,6 +5,8 @@ import streamlit as st
 from funciones_ganamos import *
 import time
 from typing import Tuple, Dict
+import logging
+
 '''
 def login_ganamos():
     
@@ -139,114 +141,97 @@ def carga_ganamos(alias, monto):
     else:
          return False , balance_ganamos
  '''   
-import requests
-import time
-from typing import Tuple, Dict
+
+# Configurar logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    filename='ganamos_operations.log'
+)
 
 def login_ganamos() -> Tuple[Dict[str, int], str]:
-    """
-    Función optimizada de login con manejo de errores mejorado
-    
-    Returns:
-        Tuple[Dict[str, int], str]: Diccionario de usuarios y session_id
-        
-    Raises:
-        Exception: Si falla el login después de 3 intentos
-    """
-    # Configuración (debería estar en variables de entorno)
+    """Función optimizada de login con logging detallado"""
     LOGIN_URL = 'https://agents.ganamos.bet/api/user/login'
     CREDENTIALS = {
         'username': 'adminflamingo',
         'password': '1111aaaa'
     }
     
-    # Headers optimizados
     HEADERS = {
         "accept": "application/json",
         "content-type": "application/json",
         "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
     }
     
-    for attempt in range(3):
+    for attempt in range(1, 4):
         try:
-            # 1. Realizar login
-            response = requests.post(
-                LOGIN_URL,
-                json=CREDENTIALS,
-                headers=HEADERS,
-                timeout=10
-            )
+            logging.info(f"Intento de login #{attempt}")
+            response = requests.post(LOGIN_URL, json=CREDENTIALS, headers=HEADERS, timeout=15)
             
             if response.status_code != 200:
-                raise ValueError(f"Error en login: {response.status_code}")
+                error_msg = f"Error en login (HTTP {response.status_code}): {response.text[:200]}"
+                logging.error(error_msg)
+                raise ValueError(error_msg)
                 
             session_id = response.cookies.get("session")
             if not session_id:
+                logging.error("No se recibió session_id en la respuesta")
                 raise ValueError("No se recibió session_id")
-                
-            # 2. Verificar sesión
+            
+            # Verificar sesión
             CHECK_URL = 'https://agents.ganamos.bet/api/user/check'
             check_response = requests.get(
                 CHECK_URL,
                 headers={**HEADERS, "cookie": f"session={session_id}"},
-                timeout=10
+                timeout=15
             )
             
             if check_response.status_code != 200:
-                raise ValueError("Error en verificación de sesión")
+                error_msg = f"Error en verificación (HTTP {check_response.status_code})"
+                logging.error(error_msg)
+                raise ValueError(error_msg)
                 
             parent_id = check_response.json()['result']['id']
+            logging.info(f"Login exitoso para parent_id: {parent_id}")
             
-            # 3. Obtener lista de usuarios
+            # Obtener usuarios
             USERS_URL = 'https://agents.ganamos.bet/api/agent_admin/user/'
             users_response = requests.get(
                 USERS_URL,
-                params={
-                    'count': '1000',  # Obtener todos los usuarios
-                    'page': '0',
-                    'user_id': parent_id,
-                    'is_banned': 'false',
-                    'is_direct_structure': 'false'
-                },
+                params={'count': '1000', 'page': '0', 'user_id': parent_id},
                 headers={**HEADERS, "cookie": f"session={session_id}"},
-                timeout=10
+                timeout=15
             )
             
             if users_response.status_code != 200:
+                logging.error(f"Error al obtener usuarios: {users_response.status_code}")
                 raise ValueError("Error obteniendo usuarios")
                 
             users = users_response.json()
-            lista_usuarios = {
-                user['username']: user['id'] 
-                for user in users["result"]["users"]
-            }
+            lista_usuarios = {user['username']: user['id'] for user in users["result"]["users"]}
+            logging.info(f"Obtenidos {len(lista_usuarios)} usuarios")
             
             return lista_usuarios, session_id
             
         except Exception as e:
-            if attempt == 2:  # Último intento
-                raise Exception(f"Fallo de login después de 3 intentos: {str(e)}")
-            time.sleep(3)  # Esperar antes de reintentar
+            logging.error(f"Intento {attempt} fallido: {str(e)}")
+            if attempt == 3:
+                raise
+            time.sleep(5)
 
 def carga_ganamos(alias: str, monto: float) -> Tuple[bool, float]:
-    """
-    Función optimizada para cargar saldo con manejo robusto de errores
-    
-    Args:
-        alias: Nombre de usuario
-        monto: Monto a cargar
-        
-    Returns:
-        Tuple[bool, float]: (éxito, balance actual)
-    """
+    """Función de carga con logging detallado"""
     try:
-        # 1. Obtener credenciales frescas
+        logging.info(f"Iniciando carga para {alias}, monto: {monto}")
+        
         usuarios, session_id = login_ganamos()
+        logging.info(f"Sesión obtenida para carga")
         
         if alias not in usuarios:
-            raise ValueError(f"Usuario {alias} no encontrado")
+            error_msg = f"Usuario {alias} no encontrado"
+            logging.error(error_msg)
+            return False, 0.0
             
-        # 2. Configurar petición de carga
         PAYMENT_URL = f'https://agents.ganamos.bet/api/agent_admin/user/{usuarios[alias]}/payment/'
         BALANCE_URL = 'https://agents.ganamos.bet/api/user/balance'
         
@@ -257,30 +242,32 @@ def carga_ganamos(alias: str, monto: float) -> Tuple[bool, float]:
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
         }
         
-        # 3. Realizar carga
         payload = {"operation": 0, "amount": float(monto)}
-        response = requests.post(
-            PAYMENT_URL,
-            json=payload,
-            headers=headers,
-            timeout=10
-        )
+        logging.info(f"Enviando petición de carga: {payload}")
+        
+        response = requests.post(PAYMENT_URL, json=payload, headers=headers, timeout=15)
         
         if response.status_code != 200:
-            error_msg = response.json().get('error_message', 'Error desconocido')
-            raise ValueError(f"Error en carga: {error_msg}")
+            error_msg = f"Error en carga (HTTP {response.status_code}): {response.text[:200]}"
+            logging.error(error_msg)
+            return False, 0.0
             
-        # 4. Obtener balance
-        balance_response = requests.get(BALANCE_URL, headers=headers, timeout=10)
-        balance = balance_response.json()['result']['balance'] if balance_response.status_code == 200 else 0.0
+        logging.info("Carga realizada con éxito")
+        
+        # Obtener balance
+        balance_response = requests.get(BALANCE_URL, headers=headers, timeout=15)
+        if balance_response.status_code == 200:
+            balance = balance_response.json()['result']['balance']
+            logging.info(f"Balance actual: {balance}")
+        else:
+            balance = 0.0
+            logging.warning(f"No se pudo obtener balance (HTTP {balance_response.status_code})")
         
         return True, balance
         
     except Exception as e:
-        # Registrar el error para diagnóstico
-        print(f"Error en carga_ganamos: {str(e)}")
+        logging.error(f"Error en carga_ganamos: {str(e)}", exc_info=True)
         return False, 0.0
-
 #Desde aq todo igual
 def retirar_ganamos(alias, monto):
     lista_usuarios, session_id= login_ganamos()

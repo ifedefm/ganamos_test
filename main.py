@@ -61,19 +61,19 @@ def call_api(endpoint, payload):
     except Exception as e:
         return {"error": True, "detail": f"Error inesperado: {str(e)}"}
 
-def ejecutar_carga_ganamos(alias: str, monto: float):
-    """Ejecuta la función de carga_ganamos con manejo robusto de errores"""
+def ejecutar_carga_ganamos(alias: str, monto: float) -> bool:
+    """Función adaptada para Streamlit con manejo de UI"""
     try:
-        resultado, detalle = carga_ganamos(alias=alias, monto=monto)
-        
-        if resultado is True:
-            st.session_state.pago_procesado = True
-            st.success(f"✅ Carga exitosa. Balance actual: ${detalle:.2f}")
-            return True
-        else:
-            st.error(f"❌ Error en la carga: {detalle}")
-            return False
+        with st.spinner("Procesando carga en Ganamos..."):
+            exito, balance = carga_ganamos(alias, monto)
             
+            if exito:
+                st.success(f"✅ Carga exitosa! Balance actual: ${balance:.2f}")
+                return True
+            else:
+                st.error("❌ Falló la carga en Ganamos. Verifica logs para más detalles")
+                return False
+                
     except Exception as e:
         st.error(f"🔥 Error crítico: {str(e)}")
         return False

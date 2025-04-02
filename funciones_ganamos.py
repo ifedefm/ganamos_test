@@ -3,7 +3,9 @@ import os
 import pandas as pd
 import streamlit as st
 from funciones_ganamos import *
-
+import time
+from typing import Tuple, Dict
+'''
 def login_ganamos():
     
     session = requests.Session()
@@ -136,8 +138,177 @@ def carga_ganamos(alias, monto):
         return True, balance_ganamos
     else:
          return False , balance_ganamos
+ '''   
+def login_ganamos(max_retries: int = 3, retry_delay: int = 5) -> Tuple[Dict[str, int], str]:
+    """
+    Función mejorada de login con manejo robusto de errores y reintentos
     
+    Args:
+        max_retries: Número máximo de reintentos
+        retry_delay: Segundos de espera entre reintentos
+        
+    Returns:
+        Tuple con (diccionario de usuarios, session_id)
+        
+    Raises:
+        Exception: Si falla después de max_retries intentos
+    """
+    # Configuración de credenciales (deberían estar en variables de entorno)
+    CREDENTIALS = {
+        'username': 'adminflamingo',
+        'password': '1111aaaa'
+    }
     
+    # URLs del API
+    URLS = {
+        'login': 'https://agents.ganamos.bet/api/user/login',
+        'check': 'https://agents.ganamos.bet/api/user/check',
+        'users': 'https://agents.ganamos.bet/api/agent_admin/user/'
+    }
+    
+    # Headers comunes
+    BASE_HEADERS = {
+        "accept": "application/json, text/plain, */*",
+        "accept-language": "es-419,es;q=0.9,en;q=0.8,pt;q=0.7,it;q=0.6",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+        "referer": "https://agents.ganamos.bet/",
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin"
+    }
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            # 1. Realizar login
+            login_response = requests.post(
+                URLS['login'],
+                json=CREDENTIALS,
+                headers={**BASE_HEADERS, "content-type": "application/json;charset=UTF-8"}
+            )
+            
+            if login_response.status_code != 200:
+                raise ValueError(f"Login falló con código {login_response.status_code}")
+                
+            session_id = login_response.cookies.get("session")
+            if not session_id:
+                raise ValueError("No se recibió session_id en la respuesta")
+            
+            # 2. Verificar sesión y obtener parent_id
+            check_response = requests.get(
+                URLS['check'],
+                headers={**BASE_HEADERS, "cookie": f"session={session_id}"}
+            )
+            
+            if check_response.status_code != 200:
+                raise ValueError("Error en verificación de usuario")
+                
+            parent_id = check_response.json()['result']['id']
+            
+            # 3. Obtener lista de usuarios
+            users_response = requests.get(
+                URLS['users'],
+                params={
+                    'count': '1000',  # Número alto para obtener todos los usuarios
+                    'page': '0',
+                    'user_id': parent_id,
+                    'is_banned': 'false',
+                    'is_direct_structure': 'false'
+                },
+                headers={**BASE_HEADERS, "cookie": f"session={session_id}"}
+            )
+            
+            if users_response.status_code != 200:
+                raise ValueError("Error obteniendo lista de usuarios")
+                
+            users_data = users_response.json()
+            lista_usuarios = {
+                user['username']: user['id'] 
+                for user in users_data["result"]["users"]
+            }
+            
+            return lista_usuarios, session_id
+            
+        except Exception as e:
+            if attempt == max_retries:
+                raise Exception(f"Fallo después de {max_retries} intentos: {str(e)}")
+            time.sleep(retry_delay)
+
+def carga_ganamos(alias: str, monto: float, max_retries: int = 2) -> Tuple[bool, float]:
+    """
+    Función mejorada para cargar saldo con manejo robusto de errores
+    
+    Args:
+        alias: Nombre de usuario a cargar
+        monto: Monto a cargar
+        max_retries: Intentos máximos si falla la autenticación
+        
+    Returns:
+        Tuple con (éxito: bool, balance_actual: float)
+    """
+    # URLs del API
+    URLS = {
+        'payment': 'https://agents.ganamos.bet/api/agent_admin/user/{}/payment/',
+        'balance': 'https://agents.ganamos.bet/api/user/balance'
+    }
+    
+    # Headers comunes
+    BASE_HEADERS = {
+        "accept": "application/json, text/plain, */*",
+        "accept-language": "es-419,es;q=0.9,en;q=0.8,pt;q=0.7,it;q=0.6",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+        "referer": "https://agents.ganamos.bet/",
+        "content-type": "application/json"
+    }
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            # Obtener credenciales frescas
+            usuarios, session_id = login_ganamos()
+            
+            if alias not in usuarios:
+                raise ValueError(f"Usuario {alias} no encontrado")
+                
+            id_usuario = usuarios[alias]
+            payment_url = URLS['payment'].format(id_usuario)
+            
+            # Configurar headers con la sesión
+            headers = {
+                **BASE_HEADERS,
+                "cookie": f"session={session_id}"
+            }
+            
+            # Realizar la carga
+            payload = {"operation": 0, "amount": float(monto)}
+            response = requests.post(
+                payment_url,
+                json=payload,
+                headers=headers
+            )
+            
+            # Si hay error de autenticación, reintentar con nueva sesión
+            if response.status_code == 401 and attempt < max_retries:
+                continue
+                
+            if response.status_code != 200:
+                error_msg = response.json().get('error_message', 'Error desconocido')
+                raise ValueError(f"Error en carga: {error_msg}")
+            
+            # Obtener balance actual
+            balance_response = requests.get(
+                URLS['balance'],
+                headers=headers
+            )
+            
+            balance = balance_response.json()['result']['balance'] if balance_response.status_code == 200 else 0.0
+            
+            return True, balance
+            
+        except Exception as e:
+            if attempt == max_retries:
+                return False, 0.0
+            time.sleep(2)  # Pequeña espera antes de reintentar
+
+#Desde aq todo igual
 def retirar_ganamos(alias, monto):
     lista_usuarios, session_id= login_ganamos()
     id_usuario = lista_usuarios[alias]

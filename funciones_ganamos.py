@@ -5,6 +5,9 @@ import streamlit as st
 from funciones_ganamos import *
 
 def login_ganamos():
+    
+    session = requests.Session()
+    
     url = 'https://agents.ganamos.bet/api/user/login'
 
     data = {
@@ -35,7 +38,7 @@ def login_ganamos():
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
     }
 
-    response = requests.post(url, json=data, headers=headers)
+    response = session.post(url, json=data, headers=headers)
     
     if response.status_code == 200 and "session" in response.cookies:
         session_id = response.cookies["session"]
@@ -60,7 +63,7 @@ def login_ganamos():
     }
 
     url_check = "https://agents.ganamos.bet/api/user/check"
-    response_check = requests.get(url_check, headers=header_check)
+    response_check = session.get(url_check, headers=header_check)
     
     if response_check.status_code != 200:
         raise Exception("Error en la verificación de usuario.")
@@ -75,7 +78,7 @@ def login_ganamos():
         'is_banned': 'false',
         'is_direct_structure': 'false'
     }
-    response_users = requests.get(url_users, params=params_users, headers=header_check)
+    response_users = session.get(url_users, params=params_users, headers=header_check)
 
     if response_users.status_code != 200:
         raise Exception("Error obteniendo lista de usuarios.")
@@ -85,6 +88,7 @@ def login_ganamos():
     return lista_usuarios, session_id
 
 def carga_ganamos(alias, monto):
+    session = requests.Session()
     usuarios, session_id= login_ganamos()
     id_usuario = usuarios[alias]
     url_carga_ganamos = f'https://agents.ganamos.bet/api/agent_admin/user/{id_usuario}/payment/'
@@ -109,7 +113,7 @@ def carga_ganamos(alias, monto):
     'cookie': f'session={session_id}'
     }
 
-    response_carga_ganamos = requests.post(url_carga_ganamos,json=payload_carga,headers=header_carga, cookies={'session':session_id})
+    response_carga_ganamos = session.post(url_carga_ganamos,json=payload_carga,headers=header_carga, cookies={'session':session_id})
     
     url_balance = 'https://agents.ganamos.bet/api/user/balance'
     header_check= {"accept": "application/json, text/plain, */*",
@@ -126,7 +130,7 @@ def carga_ganamos(alias, monto):
     "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
     'cookie': f'session={session_id}'
     }
-    response_balance = requests.get(url_balance, headers=header_check)
+    response_balance = session.get(url_balance, headers=header_check)
     balance_ganamos = response_balance.json()['result']['balance']
     if response_carga_ganamos.json()['error_message'] is None:
         return True, balance_ganamos

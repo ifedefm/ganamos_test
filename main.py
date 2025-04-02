@@ -67,7 +67,7 @@ def ejecutar_carga_ganamos(alias: str, monto: float):
     while intento < max_intentos:
         try:
             resultado = carga_ganamos(alias=alias, monto=monto)
-            if resultado and resultado.get('success'):
+            if resultado[0] == True:
                 st.session_state.pago_procesado = True
                 st.success("✅ Carga en Ganamos procesada correctamente")
                 return resultado

@@ -29,7 +29,7 @@ if 'ultima_verificacion' not in st.session_state:
     st.session_state.ultima_verificacion = None
 if 'pago_generado' not in st.session_state:
     st.session_state.pago_generado = False
-if 'pago_procesado' not in st.session_state:  # Nuevo estado para controlar si ya se ejecutó la función
+if 'pago_procesado' not in st.session_state:
     st.session_state.pago_procesado = False
 
 # Funciones auxiliares
@@ -59,17 +59,42 @@ def call_api(endpoint, payload):
     except Exception as e:
         return {"error": True, "detail": f"Error inesperado: {str(e)}"}
 
-def ejecutar_carga_ganamos(usuario: str, monto: float):
-    """Ejecuta la función de carga y maneja errores"""
-    try:
-        st.write(f"Llamando a carga_ganamos con usuario={usuario}, monto={monto}")
-        resultado = carga_ganamos(alias=usuario, monto=monto)
-        st.write(f"Resultado de carga_ganamos: {resultado}")
-        st.session_state.pago_procesado = False
-        return resultado
-    except Exception as e:
-        st.error(f"Error al ejecutar carga_ganamos: {str(e)}")
-        return False
+def ejecutar_carga_ganamos(alias: str, monto: float):
+    """Ejecuta la función de carga_ganamos con manejo robusto de errores"""
+    max_intentos = 3
+    intento = 0
+    
+    while intento < max_intentos:
+        try:
+            resultado = carga_ganamos(usuario=alias, monto=monto)
+            if resultado and resultado.get('success'):
+                st.session_state.pago_procesado = True
+                st.success("✅ Carga en Ganamos procesada correctamente")
+                return resultado
+            elif resultado:
+                st.warning(f"Intento {intento+1}: La carga no fue exitosa. Motivo: {resultado.get('message', 'Desconocido')}")
+            else:
+                st.warning(f"Intento {intento+1}: La carga no fue exitosa (respuesta vacía)")
+        except Exception as e:
+            error_msg = str(e)
+            if "session_id" in error_msg:
+                st.warning(f"Intento {intento+1}: Error de autenticación. Reintentando...")
+            else:
+                st.error(f"Intento {intento+1}: Error inesperado - {error_msg}")
+        
+        intento += 1
+        if intento < max_intentos:
+            time.sleep(5)  # Espera 5 segundos entre intentos
+    
+    st.error("""
+    ❌ No se pudo completar la carga después de 3 intentos. 
+    
+    **Por favor:**
+    1. Verifica que las credenciales en funciones_ganamos.py sean correctas
+    2. Revisa la conexión a internet
+    3. Contacta al soporte técnico con el ID de transacción
+    """)
+    return None
 
 # Interfaz principal
 st.title("💵 Sistema de Carga de Saldo")
@@ -169,30 +194,35 @@ if st.session_state.pago_generado:
                     
                     # Verificar si el pago está aprobado y no se ha procesado aún
                     if result.get("status") == "approved" and not st.session_state.pago_procesado:
-                        with st.spinner("Procesando pago..."):
-                            if ejecutar_carga_ganamos(usuario=st.session_state.usuario_id, monto=float(result.get('monto', 0))):
-                                st.balloons()
-                                st.success(f"""
-                                ✅ **Pago Confirmado y Procesado**  
-                                - **ID de Transacción:** {st.session_state.id_pago_unico}  
-                                - **ID de Pago MercadoPago:** {result['payment_id']}  
-                                - **Monto:** ${result.get('monto', 0):.2f} ARS  
-                                - **Estado:** {result.get('status', 'approved').capitalize()}  
-                                - **Fecha:** {result.get('fecha_actualizacion', 'N/A')}  
+                        with st.spinner("Procesando pago en el sistema Ganamos..."):
+                            # Ejecutar la función carga_ganamos con reintentos
+                            ejecucion_exitosa = ejecutar_carga_ganamos(
+                                alias=st.session_state.usuario_id,
+                                monto=result.get('monto', 0)
+                            
+                            # Mostrar resultado solo si no hubo éxito
+                            if not ejecucion_exitosa:
+                                st.warning("""
+                                ⚠️ **Pago verificado pero hubo un error al procesar la carga**
                                 
-                                **La carga de saldo se ha realizado correctamente**
+                                El pago en MercadoPago fue exitoso, pero no se pudo completar 
+                                la carga en el sistema Ganamos. Por favor:
+                                
+                                1. Espera unos minutos y verifica nuevamente
+                                2. Si persiste, contacta al soporte con el ID de transacción
                                 """)
-                            else:
-                                st.error("El pago se verificó pero hubo un error al procesar la carga")
-                    else:
-                        st.success(f"""
-                        ✅ **Pago Confirmado**  
-                        - **ID de Transacción:** {st.session_state.id_pago_unico}  
-                        - **ID de Pago MercadoPago:** {result['payment_id']}  
-                        - **Monto:** ${result.get('monto', 0):.2f} ARS  
-                        - **Estado:** {result.get('status', 'approved').capitalize()}  
-                        - **Fecha:** {result.get('fecha_actualizacion', 'N/A')}  
-                        """)
+                                # No marcamos como procesado para permitir reintentos
+                                st.session_state.pago_procesado = False
+                    
+                    st.balloons()
+                    st.success(f"""
+                    ✅ **Pago Confirmado**  
+                    - **ID de Transacción:** {st.session_state.id_pago_unico}  
+                    - **ID de Pago MercadoPago:** {result['payment_id']}  
+                    - **Monto:** ${result.get('monto', 0):.2f} ARS  
+                    - **Estado:** {result.get('status', 'approved').capitalize()}  
+                    - **Fecha:** {result.get('fecha_actualizacion', 'N/A')}  
+                    """)
                 else:
                     st.warning(f"""
                     ⏳ **Pago Pendiente de Confirmación**  

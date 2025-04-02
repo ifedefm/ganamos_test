@@ -5,8 +5,8 @@ import re
 import time
 
 # Configuración
-API_URL = "https://streamlit-test-eiu8.onrender.com"  # Asegúrate que esta URL sea correcta
-TIMEOUT_API = 30  # Aumentamos el timeout a 30 segundos para Render
+API_URL = "https://streamlit-test-eiu8.onrender.com"  # Cambia por tu URL real
+TIMEOUT_API = 30  # Timeout aumentado para Render
 st.set_page_config(
     page_title="Sistema de Pagos Reales",
     page_icon="💳",
@@ -14,6 +14,8 @@ st.set_page_config(
 )
 
 # Estado de la sesión
+if 'id_pago_unico' not in st.session_state:
+    st.session_state.id_pago_unico = None
 if 'preference_id' not in st.session_state:
     st.session_state.preference_id = None
 if 'payment_id' not in st.session_state:
@@ -27,7 +29,7 @@ if 'ultima_verificacion' not in st.session_state:
 if 'pago_generado' not in st.session_state:
     st.session_state.pago_generado = False
 
-# Funciones auxiliares mejoradas
+# Funciones auxiliares
 def validar_email(email):
     return re.match(r"[^@]+@[^@]+\.[^@]+", email)
 
@@ -41,7 +43,7 @@ def call_api(endpoint, payload):
         )
         
         # Debug: Imprimir respuesta de la API
-        print(f"Respuesta de la API ({endpoint}):", response.status_code, response.text)
+        st.write(f"Debug - Respuesta de la API ({endpoint}):", response.status_code, response.text)
         
         if response.status_code == 200:
             return response.json()
@@ -86,6 +88,7 @@ with st.form("form_pago"):
             if result.get("error"):
                 st.error(f"Error al generar pago: {result.get('detail')}")
             else:
+                st.session_state.id_pago_unico = result["id_pago_unico"]
                 st.session_state.preference_id = result["preference_id"]
                 st.session_state.usuario_id = usuario_id
                 st.session_state.email_comprador = email_comprador
@@ -100,6 +103,7 @@ with st.form("form_pago"):
                         <p><strong>Usuario:</strong> {usuario_id}</p>
                         <p><strong>Email:</strong> {email_comprador}</p>
                         <p><strong>Monto:</strong> ${monto:.2f} ARS</p>
+                        <p><strong>ID de Transacción:</strong> {result["id_pago_unico"]}</p>
                         <a href="{result['url_pago']}" target="_blank">
                             <button style='
                                 background-color: #00a650;
@@ -118,52 +122,58 @@ with st.form("form_pago"):
                     unsafe_allow_html=True
                 )
 
-# Sección de verificación (solo visible si se generó un pago)
+# Sección de verificación
 if st.session_state.pago_generado:
     st.divider()
     st.subheader("Verificación de Pago")
     
-    if st.button("Consultar Estado"):
-        if not st.session_state.preference_id:
+    if st.button("Consultar Estado", key="verificar_pago"):
+        if not st.session_state.id_pago_unico:
             st.warning("Primero genera un pago")
         else:
             with st.spinner("Verificando estado del pago..."):
-                result = call_api("verificar_pago", {
-                    "preference_id": st.session_state.preference_id,
-                    "usuario_id": st.session_state.usuario_id
-                })
+                # Intentar hasta 3 veces con delay
+                result = None
+                for intento in range(3):
+                    result = call_api("verificar_pago", {
+                        "id_pago_unico": st.session_state.id_pago_unico
+                    })
+                    
+                    if not result.get("error"):
+                        break
+                    time.sleep(2)  # Espera 2 segundos entre intentos
                 
                 st.session_state.ultima_verificacion = datetime.now()
                 
                 if result.get("error"):
-                    st.error(f"Error al verificar: {result.get('detail')}")
-                elif result.get("payment_id"):  # Verificación explícita de payment_id
+                    st.error(f"""
+                    ❌ **Error al verificar el pago**  
+                    Detalle: {result.get('detail')}  
+                    ID de transacción: `{st.session_state.id_pago_unico}`
+                    """)
+                elif result.get("payment_id"):
                     st.session_state.payment_id = result["payment_id"]
                     st.balloons()
                     st.success(f"""
                     ✅ **Pago Confirmado**  
-                    - ID Transacción: {result['payment_id']}  
-                    - Monto: ${result.get('monto', 0):.2f}  
-                    - Fecha: {result.get('fecha', 'N/A')}
+                    - **ID de Transacción:** {st.session_state.id_pago_unico}  
+                    - **ID de Pago MercadoPago:** {result['payment_id']}  
+                    - **Monto:** ${result.get('monto', 0):.2f} ARS  
+                    - **Estado:** {result.get('status', 'approved').capitalize()}  
+                    - **Fecha:** {result.get('fecha_actualizacion', 'N/A')}  
                     """)
                 else:
                     st.warning(f"""
-                    ⏳ **Pago no registrado completamente**  
+                    ⏳ **Pago Pendiente de Confirmación**  
                     
-                    ID de preferencia: `{st.session_state.preference_id}`  
+                    **ID de Transacción:** `{st.session_state.id_pago_unico}`  
                     
-                    Posibles causas:  
-                    1. El pago no se ha completado  
-                    2. La notificación no ha sido procesada  
-                    3. Problema de sincronización  
-                    
-                    **Solución:**  
-                    1. Espera 5 minutos  
+                    *Si ya realizaste el pago:*  
+                    1. Espera 5 minutos (las notificaciones pueden tardar)  
                     2. Vuelve a verificar  
-                    3. Si persiste, contacta soporte  
+                    3. Si persiste, contacta soporte con el ID de transacción  
                     """)
 
-    # Mostrar última verificación si existe
     if st.session_state.ultima_verificacion:
         st.caption(f"Última verificación: {st.session_state.ultima_verificacion.strftime('%H:%M:%S')}")
 
@@ -179,6 +189,13 @@ soporte@ejemplo.com
 Tel: +54 11 1234-5678
 """)
 
-# Debug: Mostrar estado de la sesión (opcional)
+# Debug: Mostrar estado de la sesión
 if st.sidebar.checkbox("Mostrar estado de depuración"):
-    st.sidebar.write("Estado actual:", st.session_state)
+    st.sidebar.write("Estado actual de la sesión:", {
+        "id_pago_unico": st.session_state.id_pago_unico,
+        "preference_id": st.session_state.preference_id,
+        "payment_id": st.session_state.payment_id,
+        "usuario_id": st.session_state.usuario_id,
+        "ultima_verificacion": st.session_state.ultima_verificacion,
+        "pago_generado": st.session_state.pago_generado
+    })

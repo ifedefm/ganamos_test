@@ -154,15 +154,15 @@ logging.basicConfig(
 
 def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
     """
-    Versión final optimizada para la carga de saldo en Ganamos
+    Versión corregida y optimizada para la carga de saldo en Ganamos
     Retorna: (success: bool, balance: float)
     """
     try:
         # 1. Autenticación
         auth_url = "https://agents.ganamos.bet/api/user/login"
         auth_data = {
-            "username": "adminflamingo",  # Reemplazar con variables de entorno en producción
-            "password": "1111aaaa"        # Reemplazar con variables de entorno en producción
+            "username": "adminflamingo",
+            "password": "1111aaaa"
         }
         
         auth_response = requests.post(
@@ -195,7 +195,7 @@ def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
         users_data = users_response.json()
         user_id = next(
             (user["id"] for user in users_data.get("result", {}).get("users", []) 
-            if user["username"] == alias
+            if user["username"] == alias), None  # <-- Paréntesis corregido aquí
         )
         
         if not user_id:

@@ -143,100 +143,81 @@ def carga_ganamos(alias, monto):
          return False , balance_ganamos
 '''
 import requests
-import logging
-
-# Configuración de logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='ganamos_operations.log'
-)
+import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
     """
-    Versión corregida y optimizada para la carga de saldo en Ganamos
-    Retorna: (success: bool, balance: float)
+    Versión ultra-confiable para cargar saldo en Ganamos
+    Retorna: (éxito: bool, balance_actual: float)
     """
-    try:
-        # 1. Autenticación
-        auth_url = "https://agents.ganamos.bet/api/user/login"
-        auth_data = {
-            "username": "adminflamingo",
-            "password": "1111aaaa"
-        }
-        
-        auth_response = requests.post(
-            auth_url,
-            json=auth_data,
-            timeout=10
-        )
-        
-        if auth_response.status_code != 200:
-            logging.error(f"Error de autenticación: {auth_response.status_code}")
-            return False, 0.0
+    # Configuración de reintentos
+    session = requests.Session()
+    retries = Retry(total=3, backoff_factor=1, status_forcelist=[500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries))
 
+    try:
+        # 1. Login con reintentos automáticos
+        auth_url = "https://agents.ganamos.bet/api/user/login"
+        auth_data = {"username": "adminflamingo", "password": "1111aaaa"}
+        
+        auth_response = session.post(auth_url, json=auth_data, timeout=10)
+        auth_response.raise_for_status()  # Lanza error si falla
+        
         session_id = auth_response.cookies.get("session")
         if not session_id:
-            logging.error("No se recibió session_id")
             return False, 0.0
 
-        # 2. Obtener ID de usuario
+        # 2. Obtener lista de usuarios
         users_url = "https://agents.ganamos.bet/api/agent_admin/user/"
-        headers = {
-            "accept": "application/json",
-            "cookie": f"session={session_id}"
-        }
+        headers = {"cookie": f"session={session_id}"}
         
-        users_response = requests.get(users_url, headers=headers, timeout=10)
-        if users_response.status_code != 200:
-            logging.error(f"Error al obtener usuarios: {users_response.status_code}")
-            return False, 0.0
-
-        users_data = users_response.json()
-        user_id = next(
-            (user["id"] for user in users_data.get("result", {}).get("users", []) 
-            if user["username"] == alias), None  # <-- Paréntesis corregido aquí
-        )
+        users_response = session.get(users_url, headers=headers, timeout=10)
+        users_response.raise_for_status()
         
+        # Buscar el usuario exacto (case sensitive)
+        user_id = None
+        for user in users_response.json().get("result", {}).get("users", []):
+            if user["username"] == alias:
+                user_id = user["id"]
+                break
+                
         if not user_id:
-            logging.error(f"Usuario {alias} no encontrado")
             return False, 0.0
 
-        # 3. Realizar la carga
+        # 3. Realizar la carga con validación estricta
         payment_url = f"https://agents.ganamos.bet/api/agent_admin/user/{user_id}/payment/"
         payment_data = {"operation": 0, "amount": float(monto)}
         
-        payment_response = requests.post(
+        payment_response = session.post(
             payment_url,
             json=payment_data,
             headers=headers,
             timeout=10
         )
-        
-        if payment_response.status_code != 200:
-            logging.error(f"Error en carga: {payment_response.status_code}")
-            return False, 0.0
+        payment_response.raise_for_status()
 
-        # 4. Obtener balance actual
+        # 4. Verificar que la carga fue aplicada
         balance_url = "https://agents.ganamos.bet/api/user/balance"
-        balance_response = requests.get(balance_url, headers=headers, timeout=10)
+        time.sleep(2)  # Espera para asegurar actualización
         
-        balance = (
-            balance_response.json().get("result", {}).get("balance", 0.0)
-            if balance_response.status_code == 200
-            else 0.0
-        )
+        balance_response = session.get(balance_url, headers=headers, timeout=10)
+        balance_response.raise_for_status()
         
-        logging.info(f"Carga exitosa para {alias}. Monto: {monto}, Balance: {balance}")
-        return True, balance
+        balance = balance_response.json().get("result", {}).get("balance", 0.0)
+        
+        # Verificación final
+        if payment_response.json().get("error_message") is None:
+            return True, balance
+        return False, balance
 
     except requests.exceptions.RequestException as e:
-        logging.error(f"Error de conexión: {str(e)}")
+        print(f"Error en la conexión: {str(e)}")
         return False, 0.0
     except Exception as e:
-        logging.error(f"Error inesperado: {str(e)}", exc_info=True)
+        print(f"Error inesperado: {str(e)}")
         return False, 0.0
-
 
 #Desde aq todo igual
 def retirar_ganamos(alias, monto):

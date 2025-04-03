@@ -142,17 +142,11 @@ def carga_ganamos(alias, monto):
     else:
          return False , balance_ganamos
 '''
-import requests
-import time
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
-
-def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
+def carga_ganamos(alias: str, monto: float, lista_usuarios: dict, session_id: str) -> tuple[bool, float]:
     """
-    Versión mejorada para cargar saldo en Ganamos que trabaja con login_ganamos
+    Versión modificada que recibe lista_usuarios y session_id
     Retorna: (éxito: bool, balance_actual: float)
     """
-    # Configuración de reintentos
     session = requests.Session()
     retries = Retry(
         total=3,
@@ -163,17 +157,11 @@ def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
     session.mount('https://', HTTPAdapter(max_retries=retries))
 
     try:
-        # 1. Obtener credenciales y sesión usando login_ganamos
-        lista_usuarios, session_id = login_ganamos()
-        
-        # Verificar que el alias existe
-        if alias not in lista_usuarios:
+        user_id = lista_usuarios.get(alias)
+        if not user_id:
             print(f"Error: El usuario '{alias}' no existe en la lista de usuarios")
             return False, 0.0
-            
-        user_id = lista_usuarios[alias]
 
-        # 2. Configurar headers para las siguientes peticiones
         headers = {
             "accept": "application/json, text/plain, */*",
             "accept-encoding": "gzip, deflate, br, zstd",
@@ -190,7 +178,6 @@ def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
             'cookie': f'session={session_id}'
         }
 
-        # 3. Realizar la carga
         payment_url = f"https://agents.ganamos.bet/api/agent_admin/user/{user_id}/payment/"
         payment_data = {"operation": 0, "amount": float(monto)}
         
@@ -202,16 +189,14 @@ def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
         )
         payment_response.raise_for_status()
 
-        # 4. Verificar que la carga fue aplicada
         balance_url = "https://agents.ganamos.bet/api/user/balance"
-        time.sleep(2)  # Espera para asegurar actualización
+        time.sleep(2)
         
         balance_response = session.get(balance_url, headers=headers, timeout=10)
         balance_response.raise_for_status()
         
         balance = balance_response.json().get("result", {}).get("balance", 0.0)
         
-        # Verificación final
         if payment_response.json().get("error_message") is None:
             return True, balance
         return False, balance
@@ -222,6 +207,7 @@ def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
     except Exception as e:
         print(f"Error inesperado: {str(e)}")
         return False, 0.0
+
 
 #Desde aq todo igual
 def retirar_ganamos(alias, monto):

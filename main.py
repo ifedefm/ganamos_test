@@ -221,9 +221,10 @@ def manejar_pago_exitoso(result: dict):
     st.session_state.payment_id = result["payment_id"]
     
     if result.get("status") == "approved" and not st.session_state.pago_procesado:
-        procesar_carga_ganamos(result)
-    
-    mostrar_resumen_pago_exitoso(result)
+        if ejecutar_carga_ganamos(st.session_state.usuario_id, result.get('monto', 0)):
+            st.balloons()
+        else:
+            st.session_state.pago_procesado = False
 
 def procesar_carga_ganamos(result: dict):
     """Procesa la carga en Ganamos para pagos aprobados"""

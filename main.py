@@ -62,7 +62,7 @@ with st.form("form_pago"):
         else:
             with st.spinner("Generando link de pago..."):
                 result = call_api("crear_pago", {
-                    "usuario_id": usuario_id,
+                    "usuario_id": usuario_id.lower(),
                     "monto": float(monto),
                     "email": email_comprador
                 })

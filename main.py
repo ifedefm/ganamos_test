@@ -10,7 +10,7 @@ TIMEOUT_API = 30
 st.set_page_config(
     page_title="Sistema de Pagos Reales",
     page_icon="💳",
-    layout="wide"
+    layout="centered"
 )
 
 # Estado de la sesión
@@ -25,7 +25,10 @@ if 'usuario_id' not in st.session_state:
 if 'pago_generado' not in st.session_state:
     st.session_state.pago_generado = False
 
-st.columns(3)
+col1, col2, col3 = st.columns([1, 2, 1])  # La columna del medio es más grande
+
+with col2:  # Solo usamos la columna central
+    tab1, tab2, tab3 = st.tabs(["Crear Usuario", "Cargar Saldo", "Retirar Saldo"])
 
 
 # Funciones auxiliares
@@ -44,108 +47,108 @@ def call_api(endpoint, payload):
     except Exception as e:
         return {"error": True, "detail": str(e)}
 
-# Interfaz principal
-st.title("💵 Sistema de Carga de Saldo")
+with tab2:
+        st.title("💵 Sistema de Carga de Saldo")
 
-# Formulario de pago
-with st.form("form_pago"):
-    col1, col2 = st.columns(2)
-    with col1:
-        usuario_id = st.text_input("ID de Usuario*:", value=st.session_state.usuario_id)
-    with col2:
-        email_comprador = st.text_input("Email del Comprador*:")
-    
-    monto = st.number_input("Monto (ARS)*:", min_value=10.0, value=50.0, step=10.0)
-    
-    if st.form_submit_button("Generar Pago", type="primary"):
-        if not all([usuario_id, email_comprador, monto > 0]):
-            st.error("Completa todos los campos obligatorios (*)")
-        elif not validar_email(email_comprador):
-            st.error("Ingresa un email válido")
-        else:
-            with st.spinner("Generando link de pago..."):
-                result = call_api("crear_pago", {
-                    "usuario_id": usuario_id.lower(),
-                    "monto": float(monto),
-                    "email": email_comprador
-                })
+        # Formulario de pago
+        with st.form("form_pago"):
+            col1, col2 = st.columns(2)
+            with col1:
+                usuario_id = st.text_input("ID de Usuario*:", value=st.session_state.usuario_id)
+            with col2:
+                email_comprador = st.text_input("Email del Comprador*:")
             
-            if result.get("error"):
-                st.error(f"Error al generar pago: {result.get('detail')}")
-            else:
-                st.session_state.id_pago_unico = result["id_pago_unico"]
-                st.session_state.preference_id = result["preference_id"]
-                st.session_state.usuario_id = usuario_id
-                st.session_state.pago_generado = True
-                
-                st.success("¡Pago generado correctamente!")
-                st.markdown(
-                    f"""
-                    <div style='margin-top:20px;'>
-                        <p><strong>ID de Transacción:</strong> {result["id_pago_unico"]}</p>
-                        <a href="{result['url_pago']}" target="_blank">
-                            <button style='
-                                background-color: #00a650;
-                                color: white;
-                                padding: 12px 24px;
-                                border: none;
-                                border-radius: 6px;
-                                font-size: 16px;
-                                margin-top: 10px;
-                                cursor: pointer;'>
-                                Ir a Pagar con Mercado Pago
-                            </button>
-                        </a>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-
-# Sección de verificación
-if st.session_state.pago_generado:
-    st.divider()
-    st.subheader("Verificación de Pago")
-    
-    if st.button("Consultar Estado", key="verificar_pago"):
-        if not st.session_state.id_pago_unico:
-            st.warning("Primero genera un pago")
-        else:
-            with st.spinner("Verificando estado del pago..."):
-                result = call_api("verificar_pago", {
-                    "id_pago_unico": st.session_state.id_pago_unico
-                })
+            monto = st.number_input("Monto (ARS)*:", min_value=10.0, value=50.0, step=10.0)
             
-            if result.get("error"):
-                st.error(f"Error al verificar: {result.get('detail')}")
-            elif result.get("payment_id"):
-                st.session_state.payment_id = result["payment_id"]
-                
-                if result.get("status") == "approved":
-                    st.success(f"""
-                    ✅ **Pago Aprobado**  
-                    - Monto: ${result.get('monto', 0):.2f}  
-                    - Hora: {datetime.now().strftime('%H:%M:%S')}
-                    """)
-                    
-                    st.markdown(f"""
-                    **Detalles del pago:**  
-                    - ID MercadoPago: {result['payment_id']}  
-                    - Estado: {result.get('status', 'approved').capitalize()}  
-                    - Fecha: {result.get('fecha_actualizacion', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}  
-                    """)
-                    
-                    st.info("""
-                    ⏳ La carga de saldo se está procesando en el servidor.  
-                    Esto puede tomar unos segundos. Refresca la página para verificar el nuevo balance.
-                    """)
+            if st.form_submit_button("Generar Pago", type="primary"):
+                if not all([usuario_id, email_comprador, monto > 0]):
+                    st.error("Completa todos los campos obligatorios (*)")
+                elif not validar_email(email_comprador):
+                    st.error("Ingresa un email válido")
                 else:
-                    st.warning(f"""
-                    ⏳ Pago aún no confirmado  
-                    Estado actual: {result.get('status', 'pending')}  
-                    Si ya pagaste, espera unos minutos y vuelve a verificar.
-                    """)
-            else:
-                st.warning("No se encontró información de pago. Intenta nuevamente más tarde.")
+                    with st.spinner("Generando link de pago..."):
+                        result = call_api("crear_pago", {
+                            "usuario_id": usuario_id.lower(),
+                            "monto": float(monto),
+                            "email": email_comprador
+                        })
+                    
+                    if result.get("error"):
+                        st.error(f"Error al generar pago: {result.get('detail')}")
+                    else:
+                        st.session_state.id_pago_unico = result["id_pago_unico"]
+                        st.session_state.preference_id = result["preference_id"]
+                        st.session_state.usuario_id = usuario_id
+                        st.session_state.pago_generado = True
+                        
+                        st.success("¡Pago generado correctamente!")
+                        st.markdown(
+                            f"""
+                            <div style='margin-top:20px;'>
+                                <p><strong>ID de Transacción:</strong> {result["id_pago_unico"]}</p>
+                                <a href="{result['url_pago']}" target="_blank">
+                                    <button style='
+                                        background-color: #00a650;
+                                        color: white;
+                                        padding: 12px 24px;
+                                        border: none;
+                                        border-radius: 6px;
+                                        font-size: 16px;
+                                        margin-top: 10px;
+                                        cursor: pointer;'>
+                                        Ir a Pagar con Mercado Pago
+                                    </button>
+                                </a>
+                            </div>
+                            """,
+                            unsafe_allow_html=True
+                        )
+
+        # Sección de verificación
+        if st.session_state.pago_generado:
+            st.divider()
+            st.subheader("Verificación de Pago")
+            
+            if st.button("Consultar Estado", key="verificar_pago"):
+                if not st.session_state.id_pago_unico:
+                    st.warning("Primero genera un pago")
+                else:
+                    with st.spinner("Verificando estado del pago..."):
+                        result = call_api("verificar_pago", {
+                            "id_pago_unico": st.session_state.id_pago_unico
+                        })
+                    
+                    if result.get("error"):
+                        st.error(f"Error al verificar: {result.get('detail')}")
+                    elif result.get("payment_id"):
+                        st.session_state.payment_id = result["payment_id"]
+                        
+                        if result.get("status") == "approved":
+                            st.success(f"""
+                            ✅ **Pago Aprobado**  
+                            - Monto: ${result.get('monto', 0):.2f}  
+                            - Hora: {datetime.now().strftime('%H:%M:%S')}
+                            """)
+                            
+                            st.markdown(f"""
+                            **Detalles del pago:**  
+                            - ID MercadoPago: {result['payment_id']}  
+                            - Estado: {result.get('status', 'approved').capitalize()}  
+                            - Fecha: {result.get('fecha_actualizacion', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}  
+                            """)
+                            
+                            st.info("""
+                            ⏳ La carga de saldo se está procesando en el servidor.  
+                            Esto puede tomar unos segundos. Refresca la página para verificar el nuevo balance.
+                            """)
+                        else:
+                            st.warning(f"""
+                            ⏳ Pago aún no confirmado  
+                            Estado actual: {result.get('status', 'pending')}  
+                            Si ya pagaste, espera unos minutos y vuelve a verificar.
+                            """)
+                    else:
+                        st.warning("No se encontró información de pago. Intenta nuevamente más tarde.")
 
 # Información de contacto
 st.divider()

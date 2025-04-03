@@ -25,6 +25,9 @@ if 'usuario_id' not in st.session_state:
 if 'pago_generado' not in st.session_state:
     st.session_state.pago_generado = False
 
+st.columns(3)
+
+
 # Funciones auxiliares
 def validar_email(email):
     return re.match(r"[^@]+@[^@]+\.[^@]+", email)

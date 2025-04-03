@@ -10,7 +10,7 @@ TIMEOUT_API = 30
 st.set_page_config(
     page_title="Sistema de Pagos Reales",
     page_icon="💳",
-    layout="centered"
+    layout="wide"
 )
 
 # Estado de la sesión

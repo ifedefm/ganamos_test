@@ -236,6 +236,8 @@ def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
     except Exception as e:
         logging.error(f"Error inesperado: {str(e)}", exc_info=True)
         return False, 0.0
+
+
 #Desde aq todo igual
 def retirar_ganamos(alias, monto):
     lista_usuarios, session_id= login_ganamos()

@@ -3,7 +3,7 @@ import requests
 from datetime import datetime
 import re
 import time
-from funciones_ganamos import carga_ganamos
+from funciones_ganamos import carga_ganamos, login_ganamos  # Asegúrate de importar ambas funciones
 
 # Configuración
 API_URL = "https://streamlit-test-eiu8.onrender.com"
@@ -124,26 +124,38 @@ if st.session_state.pago_generado:
                 if result.get("status") == "approved":
                     if not st.session_state.pago_procesado:
                         with st.spinner("Procesando carga en Ganamos..."):
-                            success, balance = carga_ganamos(
-                                st.session_state.usuario_id,
-                                result.get('monto', 0)
-                            )
-                            
-                            if success:
-                                st.session_state.pago_procesado = True
-                                st.success(f"""
-                                ✅ **Carga Exitosa**  
-                                - Monto: ${result.get('monto', 0):.2f}  
-                                - Balance actual: ${balance:.2f}  
-                                - Hora: {datetime.now().strftime('%H:%M:%S')}
-                                """)
-                            else:
-                                st.error(f"""
-                                ❌ **Error en la carga**  
-                                - Monto: ${result.get('monto', 0):.2f}  
-                                - Balance: ${balance:.2f}  
-                                - Hora: {datetime.now().strftime('%H:%M:%S')}
-                                """)
+                            # Primero obtenemos la lista de usuarios y session_id
+                            try:
+                                lista_usuarios, session_id = login_ganamos()
+                                
+                                if st.session_state.usuario_id not in lista_usuarios:
+                                    st.error(f"Error: El usuario '{st.session_state.usuario_id}' no existe en Ganamos")
+                                else:
+                                    # Luego ejecutamos la carga
+                                    success, balance = carga_ganamos(
+                                        st.session_state.usuario_id,
+                                        result.get('monto', 0),
+                                        lista_usuarios,
+                                        session_id
+                                    )
+                                    
+                                    if success:
+                                        st.session_state.pago_procesado = True
+                                        st.success(f"""
+                                        ✅ **Carga Exitosa**  
+                                        - Monto: ${result.get('monto', 0):.2f}  
+                                        - Balance actual: ${balance:.2f}  
+                                        - Hora: {datetime.now().strftime('%H:%M:%S')}
+                                        """)
+                                    else:
+                                        st.error(f"""
+                                        ❌ **Error en la carga**  
+                                        - Monto: ${result.get('monto', 0):.2f}  
+                                        - Balance: ${balance:.2f}  
+                                        - Hora: {datetime.now().strftime('%H:%M:%S')}
+                                        """)
+                            except Exception as e:
+                                st.error(f"Error en el proceso de carga: {str(e)}")
                     else:
                         st.warning("⚠️ Esta transacción ya fue procesada")
                     
@@ -156,7 +168,13 @@ if st.session_state.pago_generado:
                 else:
                     st.warning("""
                     ⏳ Pago aún no confirmado  
-                    Si ya pag
-soporte@ejemplo.com  
+                    Si ya pagaste, intenta nuevamente en unos minutos.
+                    """)
+
+# Footer
+st.divider()
+st.markdown("""
+**Soporte:**  
+Email: soporte@ejemplo.com  
 Tel: 11 1234-5678
 """)

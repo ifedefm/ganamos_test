@@ -2,115 +2,161 @@ import streamlit as st
 import requests
 from datetime import datetime
 import re
+import time
 from funciones_ganamos import carga_ganamos
 
-# Configuración básica
+# Configuración
 API_URL = "https://streamlit-test-eiu8.onrender.com"
-st.set_page_config(page_title="Sistema de Pagos", page_icon="💳", layout="wide")
+TIMEOUT_API = 30
+st.set_page_config(
+    page_title="Sistema de Pagos Reales",
+    page_icon="💳",
+    layout="wide"
+)
 
-# Estado mínimo de la sesión
-if 'id_pago' not in st.session_state:
-    st.session_state.id_pago = None
+# Estado de la sesión
+if 'id_pago_unico' not in st.session_state:
+    st.session_state.id_pago_unico = None
+if 'preference_id' not in st.session_state:
+    st.session_state.preference_id = None
+if 'payment_id' not in st.session_state:
+    st.session_state.payment_id = None
+if 'usuario_id' not in st.session_state:
     st.session_state.usuario_id = ""
+if 'pago_generado' not in st.session_state:
+    st.session_state.pago_generado = False
+if 'pago_procesado' not in st.session_state:
     st.session_state.pago_procesado = False
 
+# Funciones auxiliares
 def validar_email(email):
     return re.match(r"[^@]+@[^@]+\.[^@]+", email)
 
 def call_api(endpoint, payload):
     try:
-        response = requests.post(f"{API_URL}/{endpoint}", json=payload, timeout=30)
+        response = requests.post(
+            f"{API_URL}/{endpoint}",
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=TIMEOUT_API
+        )
         return response.json() if response.status_code == 200 else {"error": True, "detail": response.text}
     except Exception as e:
         return {"error": True, "detail": str(e)}
 
 # Interfaz principal
-st.title("💵 Carga de Saldo en Ganamos")
+st.title("💵 Sistema de Carga de Saldo")
 
 # Formulario de pago
 with st.form("form_pago"):
-    usuario_id = st.text_input("ID de Usuario en Ganamos*", value=st.session_state.usuario_id)
-    email = st.text_input("Email*", help="Para recibir confirmación")
-    monto = st.number_input("Monto ARS*", min_value=10.0, value=50.0, step=10.0)
+    col1, col2 = st.columns(2)
+    with col1:
+        usuario_id = st.text_input("ID de Usuario*:", value=st.session_state.usuario_id)
+    with col2:
+        email_comprador = st.text_input("Email del Comprador*:")
+    
+    monto = st.number_input("Monto (ARS)*:", min_value=10.0, value=50.0, step=10.0)
     
     if st.form_submit_button("Generar Pago", type="primary"):
-        if not all([usuario_id, email, monto > 0]) or not validar_email(email):
-            st.error("Complete todos los campos correctamente")
+        if not all([usuario_id, email_comprador, monto > 0]):
+            st.error("Completa todos los campos obligatorios (*)")
+        elif not validar_email(email_comprador):
+            st.error("Ingresa un email válido")
         else:
-            with st.spinner("Creando link de pago..."):
+            with st.spinner("Generando link de pago..."):
                 result = call_api("crear_pago", {
                     "usuario_id": usuario_id,
                     "monto": float(monto),
-                    "email": email
+                    "email": email_comprador
                 })
             
             if result.get("error"):
-                st.error(f"Error: {result.get('detail')}")
+                st.error(f"Error al generar pago: {result.get('detail')}")
             else:
-                st.session_state.id_pago = result["id_pago_unico"]
+                st.session_state.id_pago_unico = result["id_pago_unico"]
+                st.session_state.preference_id = result["preference_id"]
                 st.session_state.usuario_id = usuario_id
-                st.success("Pago creado correctamente")
-                st.markdown(f"""
-                **ID de Pago:** {result['id_pago_unico']}  
-                **Monto:** ${monto:.2f}  
-                **[Pagar ahora]({result['url_pago']})**  
-                """)
+                st.session_state.pago_generado = True
+                st.session_state.pago_procesado = False
+                
+                st.success("¡Pago generado correctamente!")
+                st.markdown(
+                    f"""
+                    <div style='margin-top:20px;'>
+                        <p><strong>ID de Transacción:</strong> {result["id_pago_unico"]}</p>
+                        <a href="{result['url_pago']}" target="_blank">
+                            <button style='
+                                background-color: #00a650;
+                                color: white;
+                                padding: 12px 24px;
+                                border: none;
+                                border-radius: 6px;
+                                font-size: 16px;
+                                margin-top: 10px;
+                                cursor: pointer;'>
+                                Ir a Pagar con Mercado Pago
+                            </button>
+                        </a>
+                    </div>
+                    """,
+                    unsafe_allow_html=True
+                )
 
-# Verificación de pago
-if st.session_state.id_pago:
+# Sección de verificación
+if st.session_state.pago_generado:
     st.divider()
-    st.subheader("Verificar Estado del Pago")
+    st.subheader("Verificación de Pago")
     
-    if st.button("Verificar ahora"):
-        with st.spinner("Verificando estado..."):
-            result = call_api("verificar_pago", {"id_pago_unico": st.session_state.id_pago})
+    if st.button("Consultar Estado", key="verificar_pago"):
+        if not st.session_state.id_pago_unico:
+            st.warning("Primero genera un pago")
+        else:
+            with st.spinner("Verificando estado del pago..."):
+                result = call_api("verificar_pago", {
+                    "id_pago_unico": st.session_state.id_pago_unico
+                })
             
             if result.get("error"):
-                st.error(f"Error: {result.get('detail')}")
-            elif result.get("status") == "approved":
-                if not st.session_state.pago_procesado:
-                    with st.spinner("Procesando en Ganamos..."):
-                        success, balance = carga_ganamos(st.session_state.usuario_id, result.get('monto', 0))
-                        
-                        if success:
-                            st.session_state.pago_procesado = True
-                            st.success(f"""
-                            ✅ **Carga exitosa**  
-                            - Monto cargado: ${result.get('monto', 0):.2f}  
-                            - Balance actual: ${balance:.2f}  
-                            - Hora: {datetime.now().strftime('%H:%M:%S')}
-                            """)
-                        else:
-                            st.error(f"""
-                            ❌ **Error en la carga**  
-                            - Monto a cargar: ${result.get('monto', 0):.2f}  
-                            - Balance actual: ${balance:.2f}  
-                            - Hora: {datetime.now().strftime('%H:%M:%S')}
-                            """)
+                st.error(f"Error al verificar: {result.get('detail')}")
+            elif result.get("payment_id"):
+                st.session_state.payment_id = result["payment_id"]
                 
-                st.markdown("---")
-                st.markdown(f"""
-                **Estado del pago:**  
-                - ID MercadoPago: `{result.get('payment_id', 'N/A')}`  
-                - Estado: `{result.get('status', 'approved').capitalize()}`  
-                - Fecha: `{result.get('fecha_actualizacion', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}`  
-                """)
-            else:
-                st.warning("""
-                ⏳ El pago aún no ha sido aprobado.  
-                Si ya realizaste el pago, espera unos minutos y vuelve a verificar.
-                """)
-
-# Panel de ayuda
-st.sidebar.markdown("""
-### 📌 Instrucciones
-1. Ingrese su ID de usuario de Ganamos
-2. Complete su email válido
-3. Especifique el monto a cargar
-4. Haga clic en Pagar
-5. Verifique el estado
-
-### 🛠 Soporte Técnico
+                if result.get("status") == "approved":
+                    if not st.session_state.pago_procesado:
+                        with st.spinner("Procesando carga en Ganamos..."):
+                            success, balance = carga_ganamos(
+                                st.session_state.usuario_id,
+                                result.get('monto', 0)
+                            )
+                            
+                            if success:
+                                st.session_state.pago_procesado = True
+                                st.success(f"""
+                                ✅ **Carga Exitosa**  
+                                - Monto: ${result.get('monto', 0):.2f}  
+                                - Balance actual: ${balance:.2f}  
+                                - Hora: {datetime.now().strftime('%H:%M:%S')}
+                                """)
+                            else:
+                                st.error(f"""
+                                ❌ **Error en la carga**  
+                                - Monto: ${result.get('monto', 0):.2f}  
+                                - Balance: ${balance:.2f}  
+                                - Hora: {datetime.now().strftime('%H:%M:%S')}
+                                """)
+                    else:
+                        st.warning("⚠️ Esta transacción ya fue procesada")
+                    
+                    st.markdown(f"""
+                    **Detalles del pago:**  
+                    - ID MercadoPago: {result['payment_id']}  
+                    - Estado: {result.get('status', 'approved').capitalize()}  
+                    - Fecha: {result.get('fecha_actualizacion', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}  
+                    """)
+                else:
+                    st.warning("""
+                    ⏳ Pago aún no confirmado  
+                    Si ya pag
 soporte@ejemplo.com  
 Tel: 11 1234-5678
 """)

@@ -1,9 +1,10 @@
+from funciones_ganamos import carga_ganamos, login_ganamos  # Asegúrate de importar ambas funciones
+
 import streamlit as st
 import requests
 from datetime import datetime
 import re
 import time
-from funciones_ganamos import carga_ganamos, login_ganamos  # Asegúrate de importar ambas funciones
 
 # Configuración
 API_URL = "https://streamlit-test-eiu8.onrender.com"
@@ -27,6 +28,8 @@ if 'pago_generado' not in st.session_state:
     st.session_state.pago_generado = False
 if 'pago_procesado' not in st.session_state:
     st.session_state.pago_procesado = False
+if 'intentos_verificacion' not in st.session_state:  # Nuevo estado para reintentos
+    st.session_state.intentos_verificacion = 0
 
 # Funciones auxiliares
 def validar_email(email):
@@ -78,6 +81,7 @@ with st.form("form_pago"):
                 st.session_state.usuario_id = usuario_id
                 st.session_state.pago_generado = True
                 st.session_state.pago_procesado = False
+                st.session_state.intentos_verificacion = 0  # Resetear intentos
                 
                 st.success("¡Pago generado correctamente!")
                 st.markdown(
@@ -120,42 +124,44 @@ if st.session_state.pago_generado:
                 st.error(f"Error al verificar: {result.get('detail')}")
             elif result.get("payment_id"):
                 st.session_state.payment_id = result["payment_id"]
+                st.session_state.intentos_verificacion += 1
                 
                 if result.get("status") == "approved":
                     if not st.session_state.pago_procesado:
-                        with st.spinner("Procesando carga en Ganamos..."):
-                            # Primero obtenemos la lista de usuarios y session_id
-                            try:
-                                lista_usuarios, session_id = login_ganamos()
-                                
-                                if st.session_state.usuario_id not in lista_usuarios:
-                                    st.error(f"Error: El usuario '{st.session_state.usuario_id}' no existe en Ganamos")
-                                else:
-                                    # Luego ejecutamos la carga
-                                    success, balance = carga_ganamos(
-                                        st.session_state.usuario_id,
-                                        result.get('monto', 0),
-                                        lista_usuarios,
-                                        session_id
-                                    )
-                                    
-                                    if success:
-                                        st.session_state.pago_procesado = True
-                                        st.success(f"""
-                                        ✅ **Carga Exitosa**  
-                                        - Monto: ${result.get('monto', 0):.2f}  
-                                        - Balance actual: ${balance:.2f}  
-                                        - Hora: {datetime.now().strftime('%H:%M:%S')}
-                                        """)
-                                    else:
-                                        st.error(f"""
-                                        ❌ **Error en la carga**  
-                                        - Monto: ${result.get('monto', 0):.2f}  
-                                        - Balance: ${balance:.2f}  
-                                        - Hora: {datetime.now().strftime('%H:%M:%S')}
-                                        """)
-                            except Exception as e:
-                                st.error(f"Error en el proceso de carga: {str(e)}")
+                        # Añadir barra de progreso para visualizar el tiempo de espera
+                        progress_bar = st.progress(0)
+                        status_text = st.empty()
+                        
+                        for i in range(6):  # 6 segundos aproximados
+                            time.sleep(1)
+                            progress_bar.progress((i + 1) / 6)
+                            status_text.text(f"Procesando carga en Ganamos... ({i+1}/6 segundos)")
+                        
+                        # Ejecutar la carga
+                        success, balance = carga_ganamos(
+                            st.session_state.usuario_id,
+                            result.get('monto', 0)
+                        )
+                        
+                        # Limpiar elementos de progreso
+                        progress_bar.empty()
+                        status_text.empty()
+                        
+                        if success:
+                            st.session_state.pago_procesado = True
+                            st.success(f"""
+                            ✅ **Carga Exitosa**  
+                            - Monto: ${result.get('monto', 0):.2f}  
+                            - Balance actual: ${balance:.2f}  
+                            - Hora: {datetime.now().strftime('%H:%M:%S')}
+                            """)
+                        else:
+                            st.error(f"""
+                            ❌ **Error en la carga**  
+                            - Monto: ${result.get('monto', 0):.2f}  
+                            - Balance: ${balance:.2f}  
+                            - Hora: {datetime.now().strftime('%H:%M:%S')}
+                            """)
                     else:
                         st.warning("⚠️ Esta transacción ya fue procesada")
                     
@@ -164,14 +170,17 @@ if st.session_state.pago_generado:
                     - ID MercadoPago: {result['payment_id']}  
                     - Estado: {result.get('status', 'approved').capitalize()}  
                     - Fecha: {result.get('fecha_actualizacion', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}  
+                    - Intentos de verificación: {st.session_state.intentos_verificacion}
                     """)
                 else:
-                    st.warning("""
-                    ⏳ Pago aún no confirmado  
-                    Si ya pagaste, intenta nuevamente en unos minutos.
+                    st.warning(f"""
+                    ⏳ Pago aún no confirmado (Intento {st.session_state.intentos_verificacion})  
+                    Si ya pagaste, espera unos minutos y vuelve a verificar.
                     """)
+            else:
+                st.warning("No se encontró información de pago. Intenta nuevamente más tarde.")
 
-# Footer
+# Información de contacto
 st.divider()
 st.markdown("""
 **Soporte:**  

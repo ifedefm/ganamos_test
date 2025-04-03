@@ -31,8 +31,7 @@ session_defaults = {
     'email_comprador': "",
     'ultima_verificacion': None,
     'pago_generado': False,
-    'pago_procesado': False,
-    'intentos_autenticacion': 0
+    'pago_procesado': False
 }
 
 for key, value in session_defaults.items():

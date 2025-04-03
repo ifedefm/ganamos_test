@@ -48,7 +48,8 @@ def call_api(endpoint, payload):
         return {"error": True, "detail": str(e)}
 
 with tab2:
-        st.title("💵 Carga de Saldo")
+        with col2:
+            st.title("💵 Carga de Saldo")
 
         # Formulario de pago
         with st.form("form_pago"):

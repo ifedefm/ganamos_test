@@ -71,25 +71,27 @@ def call_api(endpoint, payload):
         return {"error": True, "detail": f"Error inesperado: {str(e)}"}
 
 def ejecutar_carga_ganamos(alias: str, monto: float) -> bool:
-    """Versión simplificada que solo ejecuta si hay éxito"""
-    try:
-        # Paso 1: Llamar a la función de carga
-        resultado, balance = carga_ganamos(alias, monto)
-        
-        # Paso 2: Verificar si fue exitosa
-        if resultado:
-            st.session_state.pago_procesado = True  # Marcar como procesado
-            st.success(f"✅ Carga exitosa! Balance actual: ${balance:.2f}")
-            return True
-        else:
-            # Paso 3: Manejar el caso de fallo
-            st.error(f"❌ Falló la carga en Ganamos. Balance actual: ${balance:.2f}")
-            return False
-            
-    except Exception as e:
-        # Paso 4: Manejar errores inesperados
-        st.error(f"🔥 Error inesperado: {str(e)}")
-        return False
+    """Versión directa que garantiza ejecución"""
+    # Intento principal
+    resultado, balance = carga_ganamos(alias, monto)
+    
+    if resultado:
+        st.session_state.pago_procesado = True
+        st.success(f"✅ Carga exitosa! Balance actualizado: ${balance:.2f}")
+        return True
+    
+    # Reintento inmediato si falla
+    st.warning("Primer intento fallido. Reintentando...")
+    time.sleep(3)
+    resultado, balance = carga_ganamos(alias, monto)
+    
+    if resultado:
+        st.session_state.pago_procesado = True
+        st.success(f"✅ Carga exitosa en reintento! Balance: ${balance:.2f}")
+        return True
+    
+    st.error(f"❌ Fallo definitivo. Balance actual: ${balance:.2f}")
+    return False
 
 def mostrar_logs():
     """Muestra los últimos logs en la interfaz"""

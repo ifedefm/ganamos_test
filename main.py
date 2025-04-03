@@ -1,5 +1,4 @@
 from funciones_ganamos import carga_ganamos, login_ganamos  # Asegúrate de importar ambas funciones
-
 import streamlit as st
 import requests
 from datetime import datetime
@@ -180,6 +179,31 @@ if st.session_state.pago_generado:
             else:
                 st.warning("No se encontró información de pago. Intenta nuevamente más tarde.")
 
+# --- MODO PRUEBAS LOCAL (ELIMINAR EN PRODUCCIÓN) ---
+if st.sidebar.checkbox("🔧 Modo Pruebas Local"):
+    st.session_state.pago_generado = True
+    st.session_state.id_pago_unico = "simulado_123"
+    st.session_state.usuario_id = st.sidebar.text_input("Usuario TEST", value="test_user")
+    monto_simulado = st.sidebar.number_input("Monto TEST", value=50.0)
+    
+    if st.sidebar.button("Simular Pago Aprobado"):
+        # Simular respuesta de API
+        result = {
+            "payment_id": "simulado_"+str(int(time.time())),
+            "status": "approved",
+            "monto": monto_simulado,
+            "fecha_actualizacion": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        with st.spinner("Simulando carga..."):
+            success, balance = carga_ganamos(st.session_state.usuario_id, monto_simulado)
+            
+            if success:
+                st.success(f"✅ Simulación exitosa! Balance: ${balance:.2f}")
+            else:
+                st.error(f"❌ Simulación fallida. Balance: ${balance:.2f}")
+# ---------------------------------------------------
+
 # Información de contacto
 st.divider()
 st.markdown("""
@@ -187,3 +211,4 @@ st.markdown("""
 Email: soporte@ejemplo.com  
 Tel: 11 1234-5678
 """)
+

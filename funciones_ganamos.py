@@ -7,7 +7,7 @@ import time
 from typing import Tuple, Dict
 import logging
 
-'''
+
 def login_ganamos():
     
     session = requests.Session()
@@ -140,134 +140,7 @@ def carga_ganamos(alias, monto):
         return True, balance_ganamos
     else:
          return False , balance_ganamos
- '''   
 
-# Configurar logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    filename='ganamos_operations.log'
-)
-
-def login_ganamos() -> Tuple[Dict[str, int], str]:
-    """Función optimizada de login con logging detallado"""
-    LOGIN_URL = 'https://agents.ganamos.bet/api/user/login'
-    CREDENTIALS = {
-        'username': 'adminflamingo',
-        'password': '1111aaaa'
-    }
-    
-    HEADERS = {
-        "accept": "application/json",
-        "content-type": "application/json",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
-    }
-    
-    for attempt in range(1, 4):
-        try:
-            logging.info(f"Intento de login #{attempt}")
-            response = requests.post(LOGIN_URL, json=CREDENTIALS, headers=HEADERS, timeout=15)
-            
-            if response.status_code != 200:
-                error_msg = f"Error en login (HTTP {response.status_code}): {response.text[:200]}"
-                logging.error(error_msg)
-                raise ValueError(error_msg)
-                
-            session_id = response.cookies.get("session")
-            if not session_id:
-                logging.error("No se recibió session_id en la respuesta")
-                raise ValueError("No se recibió session_id")
-            
-            # Verificar sesión
-            CHECK_URL = 'https://agents.ganamos.bet/api/user/check'
-            check_response = requests.get(
-                CHECK_URL,
-                headers={**HEADERS, "cookie": f"session={session_id}"},
-                timeout=15
-            )
-            
-            if check_response.status_code != 200:
-                error_msg = f"Error en verificación (HTTP {check_response.status_code})"
-                logging.error(error_msg)
-                raise ValueError(error_msg)
-                
-            parent_id = check_response.json()['result']['id']
-            logging.info(f"Login exitoso para parent_id: {parent_id}")
-            
-            # Obtener usuarios
-            USERS_URL = 'https://agents.ganamos.bet/api/agent_admin/user/'
-            users_response = requests.get(
-                USERS_URL,
-                params={'count': '1000', 'page': '0', 'user_id': parent_id},
-                headers={**HEADERS, "cookie": f"session={session_id}"},
-                timeout=15
-            )
-            
-            if users_response.status_code != 200:
-                logging.error(f"Error al obtener usuarios: {users_response.status_code}")
-                raise ValueError("Error obteniendo usuarios")
-                
-            users = users_response.json()
-            lista_usuarios = {user['username']: user['id'] for user in users["result"]["users"]}
-            logging.info(f"Obtenidos {len(lista_usuarios)} usuarios")
-            
-            return lista_usuarios, session_id
-            
-        except Exception as e:
-            logging.error(f"Intento {attempt} fallido: {str(e)}")
-            if attempt == 3:
-                raise
-            time.sleep(5)
-
-def carga_ganamos(alias: str, monto: float) -> Tuple[bool, float]:
-    """Función de carga con logging detallado"""
-    try:
-        logging.info(f"Iniciando carga para {alias}, monto: {monto}")
-        
-        usuarios, session_id = login_ganamos()
-        logging.info(f"Sesión obtenida para carga")
-        
-        if alias not in usuarios:
-            error_msg = f"Usuario {alias} no encontrado"
-            logging.error(error_msg)
-            return False, 0.0
-            
-        PAYMENT_URL = f'https://agents.ganamos.bet/api/agent_admin/user/{usuarios[alias]}/payment/'
-        BALANCE_URL = 'https://agents.ganamos.bet/api/user/balance'
-        
-        headers = {
-            "accept": "application/json",
-            "content-type": "application/json",
-            "cookie": f"session={session_id}",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
-        }
-        
-        payload = {"operation": 0, "amount": float(monto)}
-        logging.info(f"Enviando petición de carga: {payload}")
-        
-        response = requests.post(PAYMENT_URL, json=payload, headers=headers, timeout=15)
-        
-        if response.status_code != 200:
-            error_msg = f"Error en carga (HTTP {response.status_code}): {response.text[:200]}"
-            logging.error(error_msg)
-            return False, 0.0
-            
-        logging.info("Carga realizada con éxito")
-        
-        # Obtener balance
-        balance_response = requests.get(BALANCE_URL, headers=headers, timeout=15)
-        if balance_response.status_code == 200:
-            balance = balance_response.json()['result']['balance']
-            logging.info(f"Balance actual: {balance}")
-        else:
-            balance = 0.0
-            logging.warning(f"No se pudo obtener balance (HTTP {balance_response.status_code})")
-        
-        return True, balance
-        
-    except Exception as e:
-        logging.error(f"Error en carga_ganamos: {str(e)}", exc_info=True)
-        return False, 0.0
 #Desde aq todo igual
 def retirar_ganamos(alias, monto):
     lista_usuarios, session_id= login_ganamos()

@@ -72,36 +72,24 @@ def call_api(endpoint, payload):
         return {"error": True, "detail": f"Error inesperado: {str(e)}"}
 
 def ejecutar_carga_ganamos(alias: str, monto: float) -> bool:
-    """Ejecuta y monitorea la carga en Ganamos"""
+    """Versión simplificada que solo ejecuta si hay éxito"""
     try:
-        with st.spinner("Procesando carga en Ganamos..."):
-            logging.info(f"Iniciando carga para {alias}, monto: {monto}")
-            exito, balance = carga_ganamos(alias, monto)
+        # Paso 1: Llamar a la función de carga
+        resultado, balance = carga_ganamos(alias, monto)
+        
+        # Paso 2: Verificar si fue exitosa
+        if resultado:
+            st.session_state.pago_procesado = True  # Marcar como procesado
+            st.success(f"✅ Carga exitosa! Balance actual: ${balance:.2f}")
+            return True
+        else:
+            # Paso 3: Manejar el caso de fallo
+            st.error(f"❌ Falló la carga en Ganamos. Balance actual: ${balance:.2f}")
+            return False
             
-            if exito:
-                st.session_state.pago_procesado = True
-                st.session_state.intentos_autenticacion = 0
-                msg = f"Carga exitosa! Usuario: {alias}, Monto: ${monto:.2f}, Balance: ${balance:.2f}"
-                logging.info(msg)
-                st.success(f"✅ {msg}")
-                return True
-            else:
-                st.session_state.intentos_autenticacion += 1
-                error_msg = f"Fallo en carga. Usuario: {alias}, Monto: ${monto:.2f}, Balance: ${balance:.2f}"
-                logging.error(error_msg)
-                
-                if st.session_state.intentos_autenticacion >= 3:
-                    st.error("🔐 Problema persistente de autenticación. Contacte al soporte.")
-                else:
-                    st.error(f"❌ {error_msg}")
-                
-                mostrar_logs()
-                return False
-                
     except Exception as e:
-        logging.error(f"Error crítico: {str(e)}", exc_info=True)
-        st.error(f"🔥 Error crítico: {str(e)}")
-        mostrar_logs()
+        # Paso 4: Manejar errores inesperados
+        st.error(f"🔥 Error inesperado: {str(e)}")
         return False
 
 def mostrar_logs():

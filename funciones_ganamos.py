@@ -147,7 +147,7 @@ import time
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-def carga_ganamos2(alias: str, monto: float) -> tuple[bool, float]:
+def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
     """
     Versión mejorada para cargar saldo en Ganamos que trabaja con login_ganamos
     Retorna: (éxito: bool, balance_actual: float)

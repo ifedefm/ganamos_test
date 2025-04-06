@@ -6,6 +6,8 @@ from funciones_ganamos import *
 import time
 from typing import Tuple, Dict
 import logging
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 
 def login_ganamos(usuario,contrasenia):
@@ -140,87 +142,54 @@ def carga_ganamos(alias, monto):
     else:
          return False , balance_ganamos
 '''
-import requests
-import time
-from requests.adapters import HTTPAdapter
-from urllib3.util.retry import Retry
 
 def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
-    """
-    Versión mejorada para cargar saldo en Ganamos que trabaja con login_ganamos
-    Retorna: (éxito: bool, balance_actual: float)
-    """
-    # Configuración de reintentos
-    session = requests.Session()
-    retries = Retry(
-        total=3,
-        backoff_factor=1,
-        status_forcelist=[500, 502, 503, 504],
-        allowed_methods=["POST", "GET"]
-    )
-    session.mount('https://', HTTPAdapter(max_retries=retries))
-
+    """Versión con un solo intento"""
     try:
-        # 1. Obtener credenciales y sesión usando login_ganamos
-        lista_usuarios, session_id = login_ganamos(usuario='adminflamingo',contrasenia='1111aaaa')
+        # 1. Obtener credenciales
+        lista_usuarios, session_id = login_ganamos(usuario='adminflamingo', contrasenia='1111aaaa')
         
-        # Verificar que el alias existe
+        # 2. Verificar usuario
         if alias not in lista_usuarios:
-            print(f"Error: El usuario '{alias}' no existe en la lista de usuarios")
+            logger.error(f"Usuario {alias} no existe")
             return False, 0.0
             
         user_id = lista_usuarios[alias]
 
-        # 2. Configurar headers para las siguientes peticiones
+        # 3. Configurar headers
         headers = {
-            "accept": "application/json, text/plain, */*",
-            "accept-encoding": "gzip, deflate, br, zstd",
-            "accept-language": "es-419,es;q=0.9,en;q=0.8,pt;q=0.7,it;q=0.6",
-            "priority": "u=1, i",
-            "referer": "https://agents.ganamos.bet/",
-            "sec-ch-ua": "\"Not)A;Brand\";v=\"99\", \"Google Chrome\";v=\"127\", \"Chromium\";v=\"127\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-            'cookie': f'session={session_id}'
+            "accept": "application/json",
+            "content-type": "application/json",
+            "cookie": f"session={session_id}",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
         }
 
-        # 3. Realizar la carga
+        # 4. Realizar carga
         payment_url = f"https://agents.ganamos.bet/api/agent_admin/user/{user_id}/payment/"
         payment_data = {"operation": 0, "amount": float(monto)}
         
-        payment_response = session.post(
+        response = requests.post(
             payment_url,
             json=payment_data,
             headers=headers,
-            timeout=10
+            timeout=15
         )
-        payment_response.raise_for_status()
-
-        # 4. Verificar que la carga fue aplicada
+        
+        if response.status_code != 200:
+            logger.error(f"Error en carga: {response.status_code} - {response.text}")
+            return False, 0.0
+            
+        # 5. Verificar balance
         balance_url = "https://agents.ganamos.bet/api/user/balance"
-        time.sleep(2)  # Espera para asegurar actualización
+        balance_response = requests.get(balance_url, headers=headers, timeout=10)
         
-        balance_response = session.get(balance_url, headers=headers, timeout=10)
-        balance_response.raise_for_status()
+        balance = balance_response.json().get("result", {}).get("balance", 0.0) if balance_response.status_code == 200 else 0.0
         
-        balance = balance_response.json().get("result", {}).get("balance", 0.0)
+        return True, balance
         
-        # Verificación final
-        if payment_response.json().get("error_message") is None:
-            return True, balance
-        return False, balance
-
-    except requests.exceptions.RequestException as e:
-        print(f"Error en la conexión: {str(e)}")
-        return False, 0.0
     except Exception as e:
-        print(f"Error inesperado: {str(e)}")
+        logger.error(f"Error en carga_ganamos: {str(e)}")
         return False, 0.0
-
 
 #Desde aq todo igual
 def retirar_ganamos(alias, monto):

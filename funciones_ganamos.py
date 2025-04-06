@@ -275,7 +275,7 @@ def retirar_ganamos(alias, monto):
     
 
 def nuevo_jugador(nueva_contrasenia, nuevo_usuario):
-    lista_usuarios, session_id= login_ganamos('adminflamingo','1111aaaa')
+    lista_usuarios, session_id= login_ganamos()
     print(session_id)
 
     url_nuevo_usuario = 'https://agents.ganamos.bet/api/agent_admin/user/'
@@ -307,7 +307,7 @@ def nuevo_jugador(nueva_contrasenia, nuevo_usuario):
 
     response = requests.post(url_nuevo_usuario, json=data, headers=header_check)
     if response.json()['status'] == 0:
-        return 'Usuario creado',lista_usuarios    
+        return 'Usuario creado',lista_usuarios,nueva_contrasenia,nuevo_usuario    
     if 'already exist' in response.json()['error_message']:
         return 'El usuario ya existe, Prueba con otro usuario',lista_usuarios
     

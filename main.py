@@ -78,7 +78,7 @@ with tab1:
                 with st.spinner("Creando usuario..."):
                     result = nuevo_jugador(nueva_contrasenia=contraseña, nuevo_usuario=usuario_id)
                     nuevo_cliente = guardar_usuario(usuario=usuario_id, contraseña=contraseña, email=email_nuevo_usuario, telefono=telefono)
-
+                    st.write("Resultado:", result)
                 if nuevo_cliente:  
                     st.session_state.usuario_id = usuario_id 
                     st.success("¡Usuario creado exitosamente!")

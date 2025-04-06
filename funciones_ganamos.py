@@ -8,15 +8,15 @@ from typing import Tuple, Dict
 import logging
 
 
-def login_ganamos():
+def login_ganamos(usuario='adminflamingo',contrasenia='1111aaaa'):
     
     session = requests.Session()
     
     url = 'https://agents.ganamos.bet/api/user/login'
 
     data = {
-        "password": '1111aaaa',
-        "username": 'adminflamingo'    
+        "password": contrasenia,
+        "username": usuario    
     }
 
     headers = {
@@ -164,7 +164,7 @@ def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
 
     try:
         # 1. Obtener credenciales y sesión usando login_ganamos
-        lista_usuarios, session_id = login_ganamos()
+        lista_usuarios, session_id = login_ganamos(usuario='adminflamingo',contrasenia='1111aaaa')
         
         # Verificar que el alias existe
         if alias not in lista_usuarios:
@@ -275,7 +275,7 @@ def retirar_ganamos(alias, monto):
     
 
 def nuevo_jugador(nueva_contrasenia, nuevo_usuario):
-    lista_usuarios, session_id= login_ganamos()
+    lista_usuarios, session_id= login_ganamos(usuario='adminflamingo', contrasenia='1111aaaa')
     print(session_id)
 
     url_nuevo_usuario = 'https://agents.ganamos.bet/api/agent_admin/user/'

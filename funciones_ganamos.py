@@ -9,9 +9,7 @@ import logging
 
 
 def login_ganamos(usuario,contrasenia):
-    
-    session = requests.Session()
-    
+        
     url = 'https://agents.ganamos.bet/api/user/login'
 
     data = {
@@ -42,7 +40,7 @@ def login_ganamos(usuario,contrasenia):
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
     }
 
-    response = session.post(url, json=data, headers=headers)
+    response = requests.post(url, json=data, headers=headers)
     
     if response.status_code == 200 and "session" in response.cookies:
         session_id = response.cookies["session"]
@@ -67,7 +65,7 @@ def login_ganamos(usuario,contrasenia):
     }
 
     url_check = "https://agents.ganamos.bet/api/user/check"
-    response_check = session.get(url_check, headers=header_check)
+    response_check = requests.get(url_check, headers=header_check)
     
     if response_check.status_code != 200:
         raise Exception("Error en la verificación de usuario.")
@@ -82,7 +80,7 @@ def login_ganamos(usuario,contrasenia):
         'is_banned': 'false',
         'is_direct_structure': 'false'
     }
-    response_users = session.get(url_users, params=params_users, headers=header_check)
+    response_users = requests.get(url_users, params=params_users, headers=header_check)
 
     if response_users.status_code != 200:
         raise Exception("Error obteniendo lista de usuarios.")

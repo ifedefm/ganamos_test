@@ -154,7 +154,7 @@ with tab2:
                         st.error(f"Error al verificar: {result.get('detail')}")
                     elif result.get("payment_id"):
                         st.session_state.payment_id = result["payment_id"]
-                        
+                        ## IDENTAD
                         if result.get("status") == "approved":
                             st.success(f"""
                             ✅ **Pago Aprobado**  
@@ -169,10 +169,13 @@ with tab2:
                             - Fecha: {result.get('fecha_actualizacion', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))}  
                             """)
                             
-                            st.info("""
-                            ⏳ La carga de saldo se está procesando en el servidor.  
-                            Esto puede tomar unos segundos. Refresca la página para verificar el nuevo balance.
-                            """)
+                            # Nuevo código para mostrar estado de Ganamos
+                            if result.get("ganamos_success"):
+                                st.success(f"✅ Saldo cargado en Ganamos correctamente. Balance actual: ${result.get('ganamos_balance', 0):.2f}")
+                            elif result.get("procesado_ganamos") and not result.get("ganamos_success"):
+                                st.error("⚠️ El pago fue aprobado pero hubo un error al cargar el saldo en Ganamos. Contacta a soporte.")
+                            else:
+                                st.info("⏳ El pago fue aprobado y se está procesando la carga en Ganamos...")
                         else:
                             st.warning(f"""
                             ⏳ Pago aún no confirmado  

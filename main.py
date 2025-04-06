@@ -3,6 +3,8 @@ import requests
 from datetime import datetime
 import re
 import time
+from funciones_ganamos import *
+
 
 # Configuración
 API_URL = "https://streamlit-test-eiu8.onrender.com"
@@ -46,6 +48,36 @@ def call_api(endpoint, payload):
         return response.json() if response.status_code == 200 else {"error": True, "detail": response.text}
     except Exception as e:
         return {"error": True, "detail": str(e)}
+
+
+with tab1:
+    st.title("👤 Crear Usuario")
+
+    with st.form("form_usuario"):
+        col1, col2,col3 = st.columns(3)
+        with col1:
+            usuario_id = st.text_input("ID de Usuario*:", value=st.session_state.usuario_id)
+            contraseña = st.text_input("Contraseña*:", type="password")
+        with col2:
+            email_nuevo_usuario = st.text_input("Email del Nuevo Usuario*:", value="")
+            repetir_contraseña = st.text_input("Repetir Contraseña*:", type="password")
+            if repetir_contraseña != contraseña:
+                st.error("Las contraseñas no coinciden")
+        with col3:
+            telefono = st.text_input("Teléfono*:", value="", key=int,help='''Ingrese el número de teléfono sin el 0 y sin el 15.
+                                                                                Ejemplo: 2611234567''')        
+
+        if st.form_submit_button("Crear Usuario", type="primary"):
+            if not all([usuario_id, contraseña, email_nuevo_usuario, repetir_contraseña]):
+                st.error("Completa todos los campos obligatorios (*)")
+            elif not validar_email(email_nuevo_usuario):
+                st.error("El email no es válido")
+            elif contraseña != repetir_contraseña:
+                st.error("Las contraseñas no coinciden")
+            else:
+                with st.spinner("Creando usuario..."):
+                    result = nuevo_jugador(nueva_contrasenia=contraseña, nuevo_usuario=usuario_id)
+                    nuevo_cliente = guardar_usuario(usuario=usuario_id,contraseña=contraseña, email=email_nuevo_usuario, telefono=telefono)
 
 with tab2:
         st.title("💵 Carga de Saldo")

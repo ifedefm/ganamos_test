@@ -314,7 +314,7 @@ def nuevo_jugador(nueva_contrasenia, nuevo_usuario):
 
 csv_file = 'data.csv'
 
-def guardar_usuario(usuario, contraseña):
+def guardar_usuario(usuario, contraseña, email, telefono):
         
     if not usuario or not contraseña:
         st.warning('Debe ingresar un usuario y una contraseña.')
@@ -323,7 +323,7 @@ def guardar_usuario(usuario, contraseña):
     resultado, lista_usuarios = nuevo_jugador(nuevo_usuario=usuario, nueva_contrasenia=contraseña, usuario='adminflamingo', contrasenia='1111aaaa')
     
     if 'Usuario creado' in resultado:
-        nuevo_dato = pd.DataFrame({'user': [usuario], 'password': [contraseña]})
+        nuevo_dato = pd.DataFrame({'user': [usuario], 'password': [contraseña],'email': [email], 'telefono': [telefono]})
         
         if os.path.exists(csv_file):
             df = pd.read_csv(csv_file)

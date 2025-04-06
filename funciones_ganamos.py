@@ -8,7 +8,7 @@ from typing import Tuple, Dict
 import logging
 
 
-def login_ganamos(usuario='adminflamingo',contrasenia='1111aaaa'):
+def login_ganamos(usuario,contrasenia):
     
     session = requests.Session()
     
@@ -274,8 +274,8 @@ def retirar_ganamos(alias, monto):
          return False, balance_ganamos
     
 
-def nuevo_jugador(nueva_contrasenia, nuevo_usuario):
-    lista_usuarios, session_id= login_ganamos(usuario='adminflamingo', contrasenia='1111aaaa')
+def nuevo_jugador(nueva_contrasenia, nuevo_usuario, usuario='adminflamingo', contrasenia='1111aaaa'):
+    lista_usuarios, session_id = login_ganamos(usuario=usuario, contrasenia=contrasenia)
     print(session_id)
 
     url_nuevo_usuario = 'https://agents.ganamos.bet/api/agent_admin/user/'

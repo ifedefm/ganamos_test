@@ -17,107 +17,70 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def login_ganamos(usuario: str, contrasenia: str) -> tuple[dict, str]:
-    """Versión optimizada que replica el comportamiento del navegador"""
-    try:
-        # Configurar sesión con reintentos
-        session = requests.Session()
-        retries = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[500, 502, 503, 504],
-            allowed_methods=["POST", "GET"]
-        )
-        session.mount('https://', HTTPAdapter(max_retries=retries))
-        
-        # 1. Realizar login
-        url = 'https://agents.ganamos.bet/api/user/login'
-        
-        headers = {
-            "authority": "agents.ganamos.bet",
-            "method": "POST",
-            "path": "/api/user/login",
-            "scheme": "https",
-            "Accept": "application/json, text/plain, */*",
-            "Accept-Encoding": "gzip, deflate, br, zstd",
-            "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
-            "Cache-Control": "no-cache",
-            "Content-Length": "50",
-            "Content-Type": "application/json;charset=UTF-8",
-            "Origin": "https://agents.ganamos.bet",
-            "Pragma": "no-cache",
-            "Referer": "https://agents.ganamos.bet/",
-            "Sec-Ch-Ua": "\"Not A(Brand\";v=\"99\", \"Google Chrome\";v=\"121\", \"Chromium\";v=\"121\"",
-            "Sec-Ch-Ua-Mobile": "?0",
-            "Sec-Ch-Ua-Platform": "\"Windows\"",
-            "Sec-Fetch-Dest": "empty",
-            "Sec-Fetch-Mode": "cors",
-            "Sec-Fetch-Site": "same-origin",
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-        }
+def login_ganamos(usuario,contrasenia):
+    url = 'https://agents.ganamos.bet/api/user/login'
 
-        data = {
-            "password": contrasenia,
-            "username": usuario    
-        }
+    data = {
+    "password": contrasenia,
+    "username": usuario    
+    }
 
-        logger.info("Enviando solicitud de login")
-        response = session.post(url, json=data, headers=headers, timeout=15)
-        
-        if response.status_code == 200 and "session" in response.cookies:
-            session_id = response.cookies["session"]
-            logger.info("Sesión obtenida correctamente")
-        else:
-            error_msg = response.json()
-            raise Exception(f"Error en login ({response.status_code}): {error_msg}")
+    headers = {
+    "authority": "agents.ganamos.bet",
+    "method": "POST",
+    "path": "/api/user/login",
+    "scheme": "https",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Encoding": "gzip, deflate, br, zstd",
+    "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
+    "Cache-Control": "no-cache",
+    "Content-Length": "50",
+    "Content-Type": "application/json;charset=UTF-8",
+    "Origin": "https://agents.ganamos.bet",
+    "Pragma": "no-cache",
+    "Referer": "https://agents.ganamos.bet/",
+    "Sec-Ch-Ua": "\"Not A(Brand\";v=\"99\", \"Google Chrome\";v=\"121\", \"Chromium\";v=\"121\"",
+    "Sec-Ch-Ua-Mobile": "?0",
+    "Sec-Ch-Ua-Platform": "\"Windows\"",
+    "Sec-Fetch-Dest": "empty",
+    "Sec-Fetch-Mode": "cors",
+    "Sec-Fetch-Site": "same-origin",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+    }
 
-        # 2. Verificar sesión
-        check_headers = {
-            "accept": "application/json, text/plain, */*",
-            "accept-encoding": "gzip, deflate, br, zstd",
-            "accept-language": "es-419,es;q=0.9,en;q=0.8,pt;q=0.7,it;q=0.6",
-            "priority": "u=1, i",
-            "referer": "https://agents.ganamos.bet/",
-            "sec-ch-ua": "\"Not)A;Brand\";v=\"99\", \"Google Chrome\";v=\"127\", \"Chromium\";v=\"127\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
-            "cookie": f"session={session_id}"
-        }
+    response = requests.post(url, json=data, headers=headers)
+    if response.status_code == 200:
+        session_id = response.cookies["session"]
 
-        check_url = "https://agents.ganamos.bet/api/user/check"
-        check_response = session.get(check_url, headers=check_headers, timeout=10)
-        
-        if check_response.status_code != 200:
-            raise Exception("Error al verificar sesión")
-
-        # 3. Obtener lista de usuarios
-        parent_id = check_response.json()['result']['id']
-        users_url = 'https://agents.ganamos.bet/api/agent_admin/user/'
-        params = {
-            'count': '10',
-            'page': '0',
-            'user_id': parent_id,
-            'is_banned': 'false',
-            'is_direct_structure': 'false'
-        }
-        
-        users_response = session.get(users_url, params=params, headers=check_headers, timeout=10)
-        
-        if users_response.status_code != 200:
-            raise Exception("Error al obtener usuarios")
-
-        usuarios = {u['username']: u['id'] for u in users_response.json()["result"]["users"]}
-        logger.info(f"Login exitoso. Usuarios disponibles: {len(usuarios)}")
-        
-        return usuarios, session_id
-
-    except Exception as e:
-        logger.error(f"Error en login_ganamos: {str(e)}")
-        raise
+    header_check = {
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, deflate, br, zstd",
+    "accept-language": "es-419,es;q=0.9,en;q=0.8,pt;q=0.7,it;q=0.6",
+    "priority": "u=1, i",
+    "referer": "https://agents.ganamos.bet/",
+    "sec-ch-ua": "\"Not)A;Brand\";v=\"99\", \"Google Chrome\";v=\"127\", \"Chromium\";v=\"127\"",
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": "\"Windows\"",
+    "sec-fetch-dest": "empty",
+    "sec-fetch-mode": "cors",
+    "sec-fetch-site": "same-origin",
+    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+    'cookie': f'session={session_id}'
+    }
+    url_check = "https://agents.ganamos.bet/api/user/check"
+    response_check = requests.get(url_check, headers=header_check)
+    parent_id = response_check.json()['result']['id']
+    url_users = 'https://agents.ganamos.bet/api/agent_admin/user/'
+    params_users = {
+        'count': '10',
+        'page': '0',
+        'user_id': parent_id,
+        'is_banned': 'false',
+        'is_direct_structure': 'false'
+    }
+    response_users = requests.get(url_users, params=params_users, headers=header_check)
+    lista_usuarios = {x['username']:x['id'] for x in response_users.json()["result"]["users"]}
+    return lista_usuarios, session_id
 
 def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:
     """Versión optimizada para cargar saldo replicando navegador"""

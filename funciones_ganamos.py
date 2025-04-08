@@ -4,6 +4,7 @@ from requests.adapters import HTTPAdapter
 import logging
 from datetime import datetime
 import time
+import streamlit as st
 
 # Configuración de logging
 logging.basicConfig(

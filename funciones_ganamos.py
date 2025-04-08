@@ -329,7 +329,7 @@ csv_file = 'data.csv'
 def nuevo_jugador(nueva_contrasenia: str, nuevo_usuario: str) -> tuple[str, dict]:
     """Crea un nuevo jugador con manejo mejorado de errores"""
     try:
-        # 1. Obtener sesión
+        # 1. Obtener sesión (credenciales hardcodeadas)
         lista_usuarios, session_id = login_ganamos(usuario='adminflamingo', contrasenia='1111aaaa')
         logger.info(f"Sesión obtenida para creación de usuario {nuevo_usuario}")
 
@@ -395,15 +395,23 @@ def nuevo_jugador(nueva_contrasenia: str, nuevo_usuario: str) -> tuple[str, dict
 Backup
 '''
 def guardar_usuario(usuario, contraseña, email, telefono):
-        
     if not usuario or not contraseña:
         st.warning('Debe ingresar un usuario y una contraseña.')
         return
     
-    resultado, lista_usuarios = nuevo_jugador(nuevo_usuario=usuario, nueva_contrasenia=contraseña, usuario='adminflamingo', contrasenia='1111aaaa')
+    # Llamada CORRECTA a nuevo_jugador (solo con los 2 parámetros que espera)
+    resultado, lista_usuarios = nuevo_jugador(
+        nueva_contrasenia=contraseña, 
+        nuevo_usuario=usuario
+    )
     
     if 'Usuario creado' in resultado:
-        nuevo_dato = pd.DataFrame({'user': [usuario], 'password': [contraseña],'email': [email], 'telefono': [telefono]})
+        nuevo_dato = pd.DataFrame({
+            'user': [usuario], 
+            'password': [contraseña],
+            'email': [email], 
+            'telefono': [telefono]
+        })
         
         if os.path.exists(csv_file):
             df = pd.read_csv(csv_file)
@@ -415,5 +423,4 @@ def guardar_usuario(usuario, contraseña, email, telefono):
         st.success('Usuario creado!!!')
     else:
         st.warning(resultado)
-
 

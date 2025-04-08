@@ -17,57 +17,48 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+import requests
+
 def login_ganamos(usuario, contrasenia):
-    url = 'https://agents.ganamos.bet/api/user/login'
+    session = requests.Session()
 
+    # 1. Hacer un GET inicial para establecer cookies base
+    session.get("https://agents.ganamos.bet")
+
+    # 2. Preparar headers y payload de login
+    url_login = "https://agents.ganamos.bet/api/user/login"
     data = {
-        "password": contrasenia,
-        "username": usuario    
+        "username": usuario,
+        "password": contrasenia
     }
-
     headers = {
-        "authority": "agents.ganamos.bet",
-        "method": "POST",
-        "path": "/api/user/login",
-        "scheme": "https",
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Encoding": "gzip, deflate, br, zstd",
-        "Accept-Language": "es-ES,es;q=0.9,en;q=0.8",
-        "Cache-Control": "no-cache",
-        "Content-Type": "application/json;charset=UTF-8",
-        "Origin": "https://agents.ganamos.bet",
-        "Pragma": "no-cache",
-        "Referer": "https://agents.ganamos.bet/",
-        "User-Agent": "Mozilla/5.0"
+        "Content-Type": "application/json",
+        "Accept": "application/json"
     }
 
-    response = requests.post(url, json=data, headers=headers)
+    # 3. Hacer el POST de login
+    response = session.post(url_login, json=data, headers=headers)
 
     if response.status_code != 200:
-        raise Exception(f"Login fallido: {response.status_code}, mensaje: {response.text}")
+        print("⚠️ Código de respuesta:", response.status_code)
+        print("🔍 Respuesta:", response.content)
+        raise Exception(f"Login fallido: {response.status_code}")
 
-    try:
-        session_id = response.cookies["session"]
-    except KeyError:
-        raise Exception("No se encontró la cookie 'session' en la respuesta del login")
+    if "session" not in session.cookies:
+        raise Exception("No se encontró la cookie de sesión")
 
-    header_check = {
-        "accept": "application/json, text/plain, */*",
-        "accept-encoding": "gzip, deflate, br, zstd",
-        "accept-language": "es-419,es;q=0.9,en;q=0.8",
-        "referer": "https://agents.ganamos.bet/",
-        "user-agent": "Mozilla/5.0",
-        'cookie': f'session={session_id}'
-    }
+    session_id = session.cookies.get("session")
 
+    # 4. Usar la sesión autenticada para obtener info del usuario
     url_check = "https://agents.ganamos.bet/api/user/check"
-    response_check = requests.get(url_check, headers=header_check)
+    response_check = session.get(url_check)
 
     if response_check.status_code != 200:
-        raise Exception("No se pudo validar el usuario")
+        raise Exception("Error al verificar sesión")
 
     parent_id = response_check.json()['result']['id']
 
+    # 5. Obtener lista de usuarios del agente
     url_users = 'https://agents.ganamos.bet/api/agent_admin/user/'
     params_users = {
         'count': '10',
@@ -77,16 +68,18 @@ def login_ganamos(usuario, contrasenia):
         'is_direct_structure': 'false'
     }
 
-    response_users = requests.get(url_users, params=params_users, headers=header_check)
+    response_users = session.get(url_users, params=params_users)
 
     if response_users.status_code != 200:
-        raise Exception("No se pudieron obtener los usuarios")
+        raise Exception("Error al obtener usuarios")
 
     lista_usuarios = {
-        x['username']: x['id'] for x in response_users.json()["result"]["users"]
+        x['username']: x['id']
+        for x in response_users.json()["result"]["users"]
     }
 
     return lista_usuarios, session_id
+
 
 
 def carga_ganamos(alias: str, monto: float) -> tuple[bool, float]:

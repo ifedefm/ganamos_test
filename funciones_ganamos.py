@@ -258,8 +258,8 @@ def retirar_ganamos(alias, monto):
          return False, balance_ganamos
     
 
-def nuevo_jugador(nueva_contrasenia, nuevo_usuario, usuario='adminflamingo', contrasenia='1111aaaa'):
-    lista_usuarios, session_id = login_ganamos(usuario=usuario, contrasenia=contrasenia)
+def nuevo_jugador(nueva_contrasenia, nuevo_usuario):
+    lista_usuarios, session_id = login_ganamos(usuario='adminflamingo', contrasenia='1111aaaa')
     print(session_id)
 
     url_nuevo_usuario = 'https://agents.ganamos.bet/api/agent_admin/user/'

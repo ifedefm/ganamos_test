@@ -284,7 +284,7 @@ def retirar_ganamos(alias, monto):
     else:
          return False, balance_ganamos
     
-
+'''
 def nuevo_jugador(nueva_contrasenia, nuevo_usuario):
     lista_usuarios, session_id = login_ganamos(usuario='adminflamingo', contrasenia='1111aaaa')
     print(session_id)
@@ -324,7 +324,76 @@ def nuevo_jugador(nueva_contrasenia, nuevo_usuario):
     
 
 csv_file = 'data.csv'
+'''
 
+def nuevo_jugador(nueva_contrasenia: str, nuevo_usuario: str) -> tuple[str, dict]:
+    """Crea un nuevo jugador con manejo mejorado de errores"""
+    try:
+        # 1. Obtener sesión
+        lista_usuarios, session_id = login_ganamos(usuario='adminflamingo', contrasenia='1111aaaa')
+        logger.info(f"Sesión obtenida para creación de usuario {nuevo_usuario}")
+
+        # 2. Configurar headers para creación
+        creation_headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Accept-Language": "es-ES,es;q=0.9",
+            "Connection": "keep-alive",
+            "Content-Type": "application/json",
+            "Origin": "https://agents.ganamos.bet",
+            "Referer": "https://agents.ganamos.bet/",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+            "X-Requested-With": "XMLHttpRequest",
+            "Cookie": f"session={session_id}"
+        }
+
+        # 3. Datos para creación
+        url_nuevo_usuario = 'https://agents.ganamos.bet/api/agent_admin/user/'
+        data = {
+            "email": f"{nuevo_usuario}@noemail.com",
+            "first_name": nuevo_usuario,
+            "last_name": "Usuario",
+            "password": nueva_contrasenia,
+            "role": 0,
+            "username": nuevo_usuario
+        }
+
+        # 4. Enviar solicitud
+        response = requests.post(
+            url_nuevo_usuario,
+            json=data,
+            headers=creation_headers,
+            timeout=30
+        )
+
+        # 5. Manejar respuesta
+        if not response.text:
+            raise Exception("Empty response from server during user creation")
+
+        try:
+            response_data = response.json()
+        except ValueError:
+            logger.error(f"Invalid JSON in response: {response.text[:500]}")
+            raise Exception("Invalid server response when creating user")
+
+        if response_data.get('status') == 0:
+            return 'Usuario creado', lista_usuarios
+        elif 'already exist' in response_data.get('error_message', ''):
+            return 'El usuario ya existe, Prueba con otro usuario', lista_usuarios
+        else:
+            error_msg = response_data.get('error_message', response.text[:200])
+            raise Exception(f"Creation failed: {error_msg}")
+
+    except Exception as e:
+        logger.error(f"Error en nuevo_jugador: {str(e)}", exc_info=True)
+        return f"Error: {str(e)}", {}
+
+'''
+Backup
+'''
 def guardar_usuario(usuario, contraseña, email, telefono):
         
     if not usuario or not contraseña:

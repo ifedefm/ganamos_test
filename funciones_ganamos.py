@@ -68,7 +68,7 @@ def login_ganamos(usuario: str, contrasenia: str) -> tuple[dict, str]:
             session_id = response.cookies["session"]
             logger.info("Sesión obtenida correctamente")
         else:
-            error_msg = response.json().get('error_message', 'Error desconocido')
+            error_msg = response.json()
             raise Exception(f"Error en login ({response.status_code}): {error_msg}")
 
         # 2. Verificar sesión

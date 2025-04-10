@@ -5,6 +5,8 @@ import logging
 from datetime import datetime
 import time
 import streamlit as st
+import pandas as pd
+import os
 
 # Configuración de logging
 logging.basicConfig(
@@ -395,6 +397,8 @@ def nuevo_jugador(nueva_contrasenia: str, nuevo_usuario: str) -> tuple[str, dict
 '''
 Backup
 '''
+
+csv_file = 'data.csv'
 def guardar_usuario(usuario, contraseña, email, telefono):
     if not usuario or not contraseña:
         st.warning('Debe ingresar un usuario y una contraseña.')

@@ -44,7 +44,8 @@ def carga_genc(monto,usuario_name):
 
             response_carga = session.post(url_carga, json=payload)
             response_carga.json()
+            monto_carga = response_carga.json()['data']['amount'] / 100
             if response_carga.json()['result'] == 'OK':
-                return f'Carga Exitosa para {name_user}', 'success'
+                return f'Carga Exitosa para {name_user} - Total Cargado {int(monto_carga)}', 'success'
             else:
                 return f'Error en la carga para {name_user}', 'error'
